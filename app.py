@@ -19,6 +19,35 @@ ROUND_PAUSE = 2.0  # حداکثر چند ثانیه خلاصه‌ی برنده/�
 rooms = {}
 lock = threading.Lock()
 
+# ---------- آمار کاربران آنلاین ----------
+presence = {}  # user_id -> زمان آخرین heartbeat
+presence_lock = threading.Lock()
+ONLINE_WINDOW = 20  # ثانیه؛ اگه این‌قدر از کاربر heartbeat نیاد آفلاین حساب میشه
+
+
+def online_count():
+    now = time.time()
+    with presence_lock:
+        stale = [uid for uid, ts in presence.items() if now - ts > ONLINE_WINDOW]
+        for uid in stale:
+            del presence[uid]
+        return len(presence)
+
+
+@app.route("/api/heartbeat", methods=["POST"])
+def heartbeat():
+    data = request.json or {}
+    uid = str(data.get("user_id", "")).strip()
+    if uid and uid != "None":
+        with presence_lock:
+            presence[uid] = time.time()
+    return jsonify({"ok": True, "count": online_count()})
+
+
+@app.route("/api/online")
+def online():
+    return jsonify({"count": online_count()})
+
 # ---------- بازی نقطه‌چین (Dots and Boxes) ----------
 dots_rooms = {}
 dots_lock = threading.Lock()
