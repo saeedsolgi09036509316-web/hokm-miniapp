@@ -163,6 +163,25 @@ button:disabled{opacity:.35;box-shadow:none;}
   font-size:15px;font-weight:900;color:#0c0e1f;border-radius:4px;}
 .dots-players li{margin:6px 0;}
 
+.nf-fab{bottom:140px;background:linear-gradient(135deg,#8b93ff,var(--mint));}
+.nf-round-head{display:flex;align-items:center;justify-content:space-between;margin:4px 0 8px;font-size:13px;color:var(--text-dim);}
+.nf-timer b{color:var(--gold);font-size:15px;}
+.nf-letter-box{text-align:center;font-size:14px;color:var(--text-dim);margin-bottom:10px;}
+.nf-letter{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;
+  background:var(--glass);border:1px solid var(--glass-brd);color:var(--gold);font-size:24px;font-weight:900;margin-inline-start:6px;}
+.nf-categories{display:flex;flex-direction:column;gap:8px;}
+.nf-cat{display:flex;align-items:center;gap:8px;}
+.nf-cat label{flex:0 0 52px;font-size:13px;color:var(--text-dim);}
+.nf-cat input{margin-bottom:0;flex:1;}
+.nf-result-table-wrap{overflow-x:auto;}
+.nf-result-table{border-collapse:collapse;width:100%;font-size:12px;}
+.nf-result-table th,.nf-result-table td{padding:6px 8px;text-align:center;border-bottom:1px solid var(--glass-brd);white-space:nowrap;}
+.nf-result-table th{color:var(--text-dim);font-weight:700;}
+.nf-result-table td small{color:var(--text-dim);}
+.nf-ok10{color:#3ddc84;}
+.nf-ok5{color:var(--gold);}
+.nf-ok0{color:var(--text-dim);opacity:.6;}
+
 .seat{position:relative;}
 .bubble{
   position:absolute;max-width:110px;background:var(--ivory);color:var(--ink);
@@ -403,7 +422,51 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
     <div class="dots-scoreboard" id="dotsFinalScoreboard"></div>
     <button onclick="backFromDotsGame()" style="margin-top:14px">🏠 بازگشت به منو</button>
   </div>
+  <div id="screen-nf-setup" class="panel" style="display:none">
+    <p style="text-align:center;font-weight:900;font-size:18px;margin:0 0 12px">📝 اسم و فامیل</p>
+    <p class="opt-label">تعداد بازیکن‌ها:</p>
+    <div class="opt-row num-grid" id="nfPlayersRow"></div>
+    <p class="opt-label" style="margin-top:14px">تعداد دور:</p>
+    <div class="opt-row">
+      <button type="button" class="opt-btn" data-nf-rounds="3" onclick="selectNfRounds(3)">۳</button>
+      <button type="button" class="opt-btn active" data-nf-rounds="5" onclick="selectNfRounds(5)">۵</button>
+      <button type="button" class="opt-btn" data-nf-rounds="8" onclick="selectNfRounds(8)">۸</button>
+    </div>
+    <button onclick="createNfRoom()" style="margin-top:16px">➕ ساخت اتاق</button>
+    <input id="nfJoinCodeInput" placeholder="کد اتاق (برای پیوستن)" style="margin-top:10px">
+    <button onclick="joinNfRoom()">🔗 پیوستن به اتاق</button>
+    <button onclick="closeNfSetup()" style="margin-top:10px;background:var(--glass);color:var(--text);box-shadow:none;border:1px solid var(--glass-brd)">بازگشت</button>
+  </div>
+  <div id="screen-nf-lobby" class="panel" style="display:none">
+    <p style="text-align:center;font-weight:900;font-size:18px;margin:0 0 10px">📝 اتاق اسم و فامیل</p>
+    <p>کد اتاق: <b id="nfRoomCodeText" style="font-size:22px;color:var(--gold)"></b></p>
+    <p id="nfLobbyInfo"></p>
+    <ul id="nfPlayersList" class="players dots-players"></ul>
+    <button id="nfStartBtn" onclick="startNfGame()" style="display:none">▶️ شروع بازی</button>
+  </div>
+  <div id="screen-nf-game" style="display:none" class="panel">
+    <div class="dots-scoreboard" id="nfScoreboard"></div>
+    <div class="nf-round-head">
+      <span id="nfRoundLabel"></span>
+      <span class="nf-timer">⏱ <b id="nfTimer"></b></span>
+    </div>
+    <div class="nf-letter-box">حرف: <span class="nf-letter" id="nfLetterBig">-</span></div>
+    <div id="nfCategories" class="nf-categories"></div>
+    <div class="status" id="nfStatusText"></div>
+    <button onclick="finishNf()" style="margin-top:10px">✅ تمام</button>
+  </div>
+  <div id="screen-nf-round-result" class="panel" style="display:none">
+    <p style="text-align:center;font-weight:900;font-size:18px;margin:0 0 6px">نتیجه‌ی دور (حرف: <span id="nfResultLetter"></span>)</p>
+    <div id="nfResultTable"></div>
+    <div class="dots-scoreboard" id="nfResultScoreboard" style="margin-top:10px"></div>
+  </div>
+  <div id="screen-nf-finished" class="panel" style="display:none">
+    <p style="text-align:center;font-size:20px;font-weight:900;margin:0 0 10px" id="nfFinishedMsg"></p>
+    <div class="dots-scoreboard" id="nfFinalScoreboard"></div>
+    <button onclick="backFromNfGame()" style="margin-top:14px">🏠 بازگشت به منو</button>
+  </div>
   <button id="dotsFab" class="dots-fab" onclick="openDotsSetup()" style="display:none">🔵 بازی نقطه‌چین</button>
+  <button id="nfFab" class="dots-fab nf-fab" onclick="openNfSetup()" style="display:none">📝 اسم و فامیل</button>
   <button id="shopBtn" class="chat-fab shop-fab" onclick="openShop()" style="display:none">🛒</button>
   <div id="shopModal" class="shop-modal" style="display:none" onclick="if(event.target===this)closeShop()">
     <div class="shop-box">
@@ -431,6 +494,14 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
     <div class="chat-row">
       <input id="dotsChatInput" placeholder="پیام...">
       <button onclick="sendDotsChat()">ارسال</button>
+    </div>
+  </div>
+  <button id="nfChatToggleBtn" class="chat-fab" onclick="toggleNfChatPopup()" style="display:none">💬</button>
+  <div id="nfChatPopup" class="chat-popup" style="display:none">
+    <div class="chatbox" id="nfChatBox"></div>
+    <div class="chat-row">
+      <input id="nfChatInput" placeholder="پیام...">
+      <button onclick="sendNfChat()">ارسال</button>
     </div>
   </div>
 </div>
@@ -727,21 +798,30 @@ function toggleMute(){
 }
 const DOTS_SCREENS = ["screen-dots-setup","screen-dots-lobby","screen-dots-game","screen-dots-finished"];
 const DOTS_CHAT_SCREENS = ["screen-dots-lobby","screen-dots-game"];
+const NF_SCREENS = ["screen-nf-setup","screen-nf-lobby","screen-nf-game","screen-nf-round-result","screen-nf-finished"];
+const NF_CHAT_SCREENS = ["screen-nf-lobby","screen-nf-game"];
 function show(id) {
-  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished","screen-search", ...DOTS_SCREENS]
+  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished","screen-search", ...DOTS_SCREENS, ...NF_SCREENS]
     .forEach(s => document.getElementById(s).style.display = (s===id ? "block":"none"));
   const sb = document.getElementById("shopBtn");
   if (sb) sb.style.display = id === "screen-lobby-choice" ? "block" : "none";
+  const hideFabs = id === "screen-name" || DOTS_SCREENS.includes(id) || NF_SCREENS.includes(id);
   const db = document.getElementById("dotsFab");
-  if (db) db.style.display = (id === "screen-name" || DOTS_SCREENS.includes(id)) ? "none" : "flex";
+  if (db) db.style.display = hideFabs ? "none" : "flex";
+  const nb = document.getElementById("nfFab");
+  if (nb) nb.style.display = hideFabs ? "none" : "flex";
   if (!DOTS_SCREENS.includes(id) && dotsPollTimer) { clearInterval(dotsPollTimer); dotsPollTimer = null; }
+  if (!NF_SCREENS.includes(id) && nfPollTimer) { clearInterval(nfPollTimer); nfPollTimer = null; }
 
   const inDotsChat = DOTS_CHAT_SCREENS.includes(id);
-  const ctb = document.getElementById("chatToggleBtn"), dctb = document.getElementById("dotsChatToggleBtn");
-  if (ctb) ctb.style.display = (id === "screen-name" || inDotsChat) ? "none" : "flex";
+  const inNfChat = NF_CHAT_SCREENS.includes(id);
+  const ctb = document.getElementById("chatToggleBtn"), dctb = document.getElementById("dotsChatToggleBtn"), nctb = document.getElementById("nfChatToggleBtn");
+  if (ctb) ctb.style.display = (id === "screen-name" || inDotsChat || inNfChat) ? "none" : "flex";
   if (dctb) dctb.style.display = inDotsChat ? "flex" : "none";
-  if (!inDotsChat) { chatPopupOpen = false; const dp = document.getElementById("dotsChatPopup"); if (dp) dp.style.display = "none"; }
-  if (id !== "screen-name" && !inDotsChat) { /* حکم: پاپ‌آپ چت خودش با toggle مدیریت می‌شه */ }
+  if (nctb) nctb.style.display = inNfChat ? "flex" : "none";
+  if (!inDotsChat) { const dp = document.getElementById("dotsChatPopup"); if (dp) dp.style.display = "none"; }
+  if (!inNfChat) { nfChatPopupOpen = false; const np = document.getElementById("nfChatPopup"); if (np) np.style.display = "none"; }
+  if (!inDotsChat && !inNfChat) { chatPopupOpen = false; }
 }
 function selectPlayers(n){
   selectedPlayers = n;
@@ -929,6 +1009,198 @@ function renderDotsChat(chat) {
   if (chat.length === dotsLastChatCount) return;
   dotsLastChatCount = chat.length;
   const box = document.getElementById("dotsChatBox");
+  box.innerHTML = chat.map(c => `<div><b>${esc(c.name)}:</b> ${esc(c.text)}</div>`).join("");
+  box.scrollTop = box.scrollHeight;
+}
+/* ---- بازی اسم و فامیل (تنظیمات اتاق) ---- */
+let selectedNfPlayers = 4, selectedNfRounds = 5, nfReturnScreen = "screen-lobby-choice";
+function buildNfPlayersRow() {
+  const row = document.getElementById("nfPlayersRow");
+  if (!row) return;
+  const fa = ["۲","۳","۴","۵","۶"];
+  row.innerHTML = fa.map((label, i) => {
+    const n = i + 2;
+    return `<button type="button" class="opt-btn${n===selectedNfPlayers?" active":""}" data-nf-players="${n}" onclick="selectNfPlayers(${n})">${label}</button>`;
+  }).join("");
+}
+function selectNfPlayers(n) {
+  selectedNfPlayers = n;
+  document.querySelectorAll('.opt-btn[data-nf-players]').forEach(b => b.classList.toggle('active', Number(b.dataset.nfPlayers) === n));
+}
+function selectNfRounds(n) {
+  selectedNfRounds = n;
+  document.querySelectorAll('.opt-btn[data-nf-rounds]').forEach(b => b.classList.toggle('active', Number(b.dataset.nfRounds) === n));
+}
+function openNfSetup() {
+  beep(520, .08);
+  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished","screen-search", ...DOTS_SCREENS]
+    .forEach(s => { const el = document.getElementById(s); if (el && el.style.display !== "none") nfReturnScreen = s; });
+  buildNfPlayersRow();
+  show("screen-nf-setup");
+}
+function closeNfSetup() {
+  show(nfReturnScreen);
+}
+async function createNfRoom() {
+  beep(520, .08);
+  try {
+    const data = await api("/api/nf/create", "POST", {user_id:userId, name:userName, max_players:selectedNfPlayers, target_rounds:selectedNfRounds});
+    nfRoomCode = data.code;
+    enterNfLobby();
+  } catch(e) { alert("خطا در ساخت اتاق"); }
+}
+async function joinNfRoom() {
+  const code = document.getElementById("nfJoinCodeInput").value.trim().toUpperCase();
+  if (!code) return;
+  try {
+    await api("/api/nf/join", "POST", {code, user_id:userId, name:userName});
+    nfRoomCode = code; enterNfLobby();
+  } catch(e) { alert(e.error === "room_full" ? "اتاق پره" : "اتاق پیدا نشد"); }
+}
+/* ---- بازی اسم و فامیل (اتاق انتظار و بازی) ---- */
+let nfRoomCode, nfPollTimer, nfLastStatus = "", nfLastRoundKey = "", nfChatPopupOpen = false, nfLastChatCount = 0, nfSubmitTimer = null;
+function nfColorFor(state, uid) {
+  const i = state.players.findIndex(p => p.id === uid);
+  return DOTS_COLORS[i < 0 ? 0 : i % DOTS_COLORS.length];
+}
+function nfNameFor(state, uid) {
+  const p = state.players.find(p => p.id === uid);
+  return p ? p.name : "?";
+}
+function enterNfLobby() {
+  document.getElementById("nfRoomCodeText").textContent = nfRoomCode;
+  nfLastChatCount = 0;
+  show("screen-nf-lobby");
+  startNfPolling();
+}
+function startNfPolling() {
+  if (nfPollTimer) clearInterval(nfPollTimer);
+  refreshNfState();
+  nfPollTimer = setInterval(refreshNfState, 1000);
+}
+async function refreshNfState() {
+  try {
+    const res = await api(`/api/nf/state?code=${nfRoomCode}&user_id=${userId}`);
+    renderNfState(res.state);
+  } catch(e) { /* بی‌خیال یه خطای موقت poll */ }
+}
+async function startNfGame() {
+  try { await api("/api/nf/start", "POST", {code:nfRoomCode, user_id:userId}); }
+  catch(e) { alert("فقط سازنده‌ی اتاق می‌تونه بازی رو شروع کنه (حداقل ۲ بازیکن لازمه)"); }
+}
+function renderNfState(state) {
+  if (NF_CHAT_SCREENS.some(s => document.getElementById(s).style.display !== "none")) renderNfChat(state.chat);
+  if (state.status === "waiting") {
+    renderNfLobby(state);
+  } else if (state.status === "playing") {
+    if (nfLastStatus !== "playing") { nfLastRoundKey = ""; show("screen-nf-game"); }
+    renderNfGame(state);
+  } else if (state.status === "round_result") {
+    if (nfLastStatus !== "round_result") { renderNfRoundResult(state); show("screen-nf-round-result"); }
+  } else if (state.status === "finished") {
+    if (nfLastStatus !== "finished") { renderNfFinished(state); show("screen-nf-finished"); }
+  }
+  nfLastStatus = state.status;
+}
+function renderNfLobby(state) {
+  document.getElementById("nfRoomCodeText").textContent = nfRoomCode;
+  document.getElementById("nfLobbyInfo").textContent = `${state.players.length.toLocaleString("fa-IR")} از ${state.max_players.toLocaleString("fa-IR")} بازیکن — منتظر شروع بازی`;
+  document.getElementById("nfPlayersList").innerHTML =
+    state.players.map(p => `<li>👤 ${esc(p.name)}${p.id===state.host?" (سازنده)":""}</li>`).join("");
+  const startBtn = document.getElementById("nfStartBtn");
+  startBtn.style.display = (state.host === userId && state.players.length >= 2) ? "block" : "none";
+}
+function renderNfScoreboard(state, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = state.players.map(p => {
+    const score = (state.scores && state.scores[p.id]) || 0;
+    return `<div class="dots-chip" style="box-shadow:inset 0 0 0 1px ${nfColorFor(state,p.id)}">${esc(p.name)}<b>${score}</b></div>`;
+  }).join("");
+}
+function nfCollectAnswers() {
+  const answers = {};
+  document.querySelectorAll("#nfCategories input[data-cat]").forEach(inp => { answers[inp.dataset.cat] = inp.value; });
+  return answers;
+}
+function nfDebouncedSubmit() {
+  if (nfSubmitTimer) clearTimeout(nfSubmitTimer);
+  nfSubmitTimer = setTimeout(() => {
+    api("/api/nf/submit", "POST", {code:nfRoomCode, user_id:userId, answers:nfCollectAnswers()}).catch(()=>{});
+  }, 700);
+}
+async function finishNf() {
+  beep(520, .08);
+  try { await api("/api/nf/finish", "POST", {code:nfRoomCode, user_id:userId, answers:nfCollectAnswers()}); }
+  catch(e) {}
+}
+function renderNfGame(state) {
+  renderNfScoreboard(state, "nfScoreboard");
+  const key = state.round + ":" + state.letter;
+  if (key !== nfLastRoundKey) {
+    nfLastRoundKey = key;
+    document.getElementById("nfLetterBig").textContent = state.letter;
+    document.getElementById("nfRoundLabel").textContent = `دور ${state.round.toLocaleString("fa-IR")} از ${state.target_rounds.toLocaleString("fa-IR")}`;
+    document.getElementById("nfCategories").innerHTML = state.categories.map((cat, i) => `
+      <div class="nf-cat">
+        <label>${esc(cat)}</label>
+        <input type="text" id="nfInput_${i}" data-cat="${esc(cat)}" placeholder="${esc(state.letter)}..." oninput="nfDebouncedSubmit()">
+      </div>`).join("");
+  }
+  const remain = Math.max(0, Math.round(state.round_end_at - (Date.now()/1000)));
+  document.getElementById("nfTimer").textContent = remain.toLocaleString("fa-IR") + " ثانیه";
+  const statusEl = document.getElementById("nfStatusText");
+  if (state.finished_by) {
+    statusEl.textContent = state.finished_by === userId ? "منتظر بقیه..." : `${nfNameFor(state, state.finished_by)} تموم کرد! عجله کن ⏳`;
+  } else {
+    statusEl.textContent = "";
+  }
+}
+function renderNfRoundResult(state) {
+  const rr = state.round_result;
+  if (!rr) return;
+  document.getElementById("nfResultLetter").textContent = rr.letter;
+  const players = state.players;
+  let html = `<div class="nf-result-table-wrap"><table class="nf-result-table"><thead><tr><th></th>${players.map(p=>`<th>${esc(p.name)}</th>`).join("")}</tr></thead><tbody>`;
+  state.categories.forEach(cat => {
+    html += `<tr><td>${esc(cat)}</td>${players.map(p => {
+      const b = (rr.breakdown[p.id]||{})[cat] || {answer:"", points:0};
+      const cls = b.points===10 ? "nf-ok10" : b.points===5 ? "nf-ok5" : "nf-ok0";
+      return `<td class="${cls}">${esc(b.answer || "–")}<br><small>${b.points}</small></td>`;
+    }).join("")}</tr>`;
+  });
+  html += `</tbody></table></div>`;
+  document.getElementById("nfResultTable").innerHTML = html;
+  renderNfScoreboard(state, "nfResultScoreboard");
+}
+function renderNfFinished(state) {
+  const iWon = (state.winners || []).includes(userId);
+  const names = (state.winners || []).map(id => nfNameFor(state, id)).join("، ");
+  document.getElementById("nfFinishedMsg").textContent =
+    (state.winners || []).length > 1 ? `🤝 مساوی بین ${names}` : (iWon ? "🏆 شما بردید!" : `🏆 برنده: ${names}`);
+  renderNfScoreboard(state, "nfFinalScoreboard");
+}
+function backFromNfGame() {
+  if (nfPollTimer) { clearInterval(nfPollTimer); nfPollTimer = null; }
+  nfRoomCode = null;
+  show("screen-lobby-choice");
+}
+function toggleNfChatPopup() {
+  nfChatPopupOpen = !nfChatPopupOpen;
+  document.getElementById("nfChatPopup").style.display = nfChatPopupOpen ? "block" : "none";
+}
+async function sendNfChat() {
+  const input = document.getElementById("nfChatInput");
+  const text = input.value.trim();
+  if (!text || !nfRoomCode) return;
+  input.value = "";
+  try { await api("/api/nf/chat", "POST", {code:nfRoomCode, user_id:userId, text}); } catch(e){}
+}
+function renderNfChat(chat) {
+  if (!chat) return;
+  if (chat.length === nfLastChatCount) return;
+  nfLastChatCount = chat.length;
+  const box = document.getElementById("nfChatBox");
   box.innerHTML = chat.map(c => `<div><b>${esc(c.name)}:</b> ${esc(c.text)}</div>`).join("");
   box.scrollTop = box.scrollHeight;
 }
@@ -1168,177 +1440,4 @@ function renderGame(state) {
     trickKey = tk;
     const trickEl = document.getElementById("trick");
     // اگه دست جدیدی شروع شده (تعداد کارت‌ها کمتر از قبله یا صفره)، میز رو کامل خالی کن
-    if (entries.length === 0 || entries.length < trickRenderedPids.size) {
-      if (!dealPending && !dealing && trickRenderedPids.size) collectTrick(trickEl, rel(entries.length ? entries[0][0] : state.turn));
-      trickEl.innerHTML = "";
-      trickRenderedPids = new Set();
-    }
-    // فقط کارت‌های جدید رو اضافه کن؛ کارت‌های قبلی رو دست نزن تا انیمیشنشون دوباره اجرا نشه
-    entries.forEach(([pid, card]) => {
-      if (!trickRenderedPids.has(pid)) {
-        trickRenderedPids.add(pid);
-        trickEl.insertAdjacentHTML("beforeend", cardHtml(card, `tc${rel(pid)} drop`));
-      }
-    });
-  }
-  const hk = state.hand.join("|") + (myTurn?"*":"");
-  if (hk !== handKey && !dealing) {
-    handKey = hk;
-    const h = document.getElementById("handArea");
-    h.className = "hand" + (myTurn ? " mine" : "");
-    h.innerHTML = state.hand.map(card => cardHtml(card, "", `onclick="playCard('${card}')"`)).join("");
-    if (dealPending) startDeal(state);
-  }
-  dealPending = false;
-}
-/* ---- انیمیشن پخش کارت بین بازیکن‌ها ---- */
-function prefersReduced() {
-  return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
-}
-function cancelDeal() {
-  dealTimers.forEach(clearTimeout); dealTimers = [];
-  dealAnims.forEach(a => { try { a.cancel(); } catch(e){} }); dealAnims = [];
-  const layer = document.getElementById("dealLayer");
-  if (layer) layer.innerHTML = "";
-  document.querySelectorAll("#handArea .card").forEach(c => c.style.visibility = "");
-  dealing = false;
-}
-function finishDeal() {
-  cancelDeal();
-  if (lastState && lastState.status === "playing") { handKey = ""; renderGame(lastState); }
-}
-function collectTrick(trickEl, winRel) {
-  const layer = document.getElementById("dealLayer");
-  const cards = Array.from(trickEl.children);
-  const seat = document.getElementById("seat" + winRel);
-  if (!cards.length || !seat || !layer || !layer.animate || prefersReduced()) return;
-  const t = (seat.querySelector(".av") || seat).getBoundingClientRect();
-  const tx = t.left + t.width / 2 - 23, ty = t.top + t.height / 2 - 33;
-  beep(240, .12);
-  cards.forEach((c, k) => {
-    const r = c.getBoundingClientRect();
-    const el = document.createElement("div");
-    el.className = "card collect-card" + (c.classList.contains("red") ? " red" : "");
-    el.innerHTML = c.innerHTML;
-    layer.appendChild(el);
-    const a = el.animate([
-      {transform:`translate(${r.left}px,${r.top}px) scale(1) rotate(0deg)`, opacity:1},
-      {transform:`translate(${tx}px,${ty}px) scale(.35) rotate(${k % 2 ? 25 : -25}deg)`, opacity:0}
-    ], {duration:420, delay:280 + k * 45, easing:"cubic-bezier(.5,0,.8,.5)", fill:"both"});
-    a.onfinish = () => {
-      el.remove();
-      if (k === cards.length - 1) {
-        const av = document.querySelector("#seat" + winRel + " .av");
-        if (av) av.animate([{transform:"scale(1)"},{transform:"scale(1.18)"},{transform:"scale(1)"}], {duration:200});
-      }
-    };
-  });
-}
-function startDeal(state) {
-  const layer = document.getElementById("dealLayer");
-  const cards = Array.from(document.getElementById("handArea").children);
-  const players = state.players, n = players.length;
-  if (!layer || !cards.length || !n || !layer.animate) return;
-  dealing = true;
-  cards.forEach(c => c.style.visibility = "hidden");
-  dealShown = {};
-  for (let s = 1; s < n; s++) {
-    dealShown[s] = 0;
-    const bd = document.querySelector("#seat" + s + " .cbadge");
-    if (bd) bd.textContent = "0";
-  }
-  const myIdx = Math.max(0, players.findIndex(p => p.id === userId));
-  let first = players.findIndex(p => p.id === state.hakem);
-  if (first < 0) first = 0;
-  const per = cards.length, seq = [];
-  for (let i = 0; i < per; i++) for (let j = 0; j < n; j++) seq.push({p:(first + j) % n, i});
-  const step = Math.max(26, Math.min(70, 2000 / seq.length));
-  const T0 = 300, DUR = 440;
-  const f = document.getElementById("trick").getBoundingClientRect();
-  const cx = f.left + f.width / 2 - 26, cy = f.top + f.height / 2 - 38;
-  const deck = document.createElement("div");
-  deck.className = "deal-deck";
-  deck.style.left = cx + "px"; deck.style.top = cy + "px";
-  deck.innerHTML = [0,1,2].map(k => `<i class="card-back" style="transform:translate(${k*2}px,${-k*2}px)"></i>`).join("");
-  layer.appendChild(deck);
-  dealAnims.push(deck.animate([{opacity:0, transform:"scale(.3)"},{opacity:1, transform:"scale(.72)"}], {duration:220, easing:"ease-out"}));
-  seq.forEach((d, idx) => {
-    dealTimers.push(setTimeout(() => {
-      const rel = (d.p - myIdx + n) % n;
-      let tx, ty, s1, r1;
-      if (rel === 0) {
-        const r = cards[d.i].getBoundingClientRect();
-        tx = r.left + r.width / 2 - 26; ty = r.top + r.height / 2 - 38; s1 = r.width / 52; r1 = 0;
-      } else {
-        const seat = document.getElementById("seat" + rel);
-        const r = (seat.querySelector(".av") || seat).getBoundingClientRect();
-        tx = r.left + r.width / 2 - 26; ty = r.top + r.height / 2 - 38; s1 = .45; r1 = Math.random() * 40 - 20;
-      }
-      const from = `translate(${cx}px,${cy}px) scale(.72) rotate(${Math.random() * 16 - 8}deg)`;
-      const to = `translate(${tx}px,${ty}px) scale(${s1}) rotate(${r1}deg)`;
-      const el = document.createElement("div");
-      el.className = "card-back deal-card";
-      el.style.transform = from;
-      layer.appendChild(el);
-      const frames = rel === 0
-        ? [{transform:from, opacity:1},{transform:to, opacity:1}]
-        : [{transform:from, opacity:1},{transform:to, opacity:.9, offset:.8},{transform:to, opacity:0}];
-      const a = el.animate(frames, {duration:DUR, easing:"cubic-bezier(.22,.8,.3,1)", fill:"forwards"});
-      dealAnims.push(a);
-      beep(rel === 0 ? 760 : 520, .03, "triangle");
-      a.onfinish = () => {
-        el.remove();
-        if (!dealing) return;
-        if (rel === 0) {
-          const c = cards[d.i];
-          c.style.visibility = "";
-          c.animate([{transform:"scaleX(.1)"},{transform:"none"}], {duration:160, easing:"ease-out"});
-        } else {
-          const av = document.querySelector("#seat" + rel + " .av");
-          dealShown[rel] = (dealShown[rel] || 0) + 1;
-          const bd = document.querySelector("#seat" + rel + " .cbadge");
-          if (bd) bd.textContent = dealShown[rel];
-          if (av) av.animate([{transform:"scale(1)"},{transform:"scale(1.14)"},{transform:"scale(1)"}], {duration:150});
-        }
-      };
-    }, T0 + idx * step));
-  });
-  const tLast = T0 + (seq.length - 1) * step;
-  dealTimers.push(setTimeout(() => {
-    dealAnims.push(deck.animate([{opacity:1},{opacity:0}], {duration:220, fill:"forwards"}));
-  }, tLast));
-  dealTimers.push(setTimeout(finishDeal, tLast + DUR + 250));
-}
-async function startGame() {
-  try { await api("/api/start", "POST", {code:roomCode, user_id:userId}); }
-  catch(e) { alert("خطا در شروع بازی"); }
-}
-async function chooseTrump(suit) {
-  try { await api("/api/choose_trump", "POST", {code:roomCode, user_id:userId, suit}); }
-  catch(e) { alert("فقط حاکم می‌تونه حکم رو انتخاب کنه"); }
-}
-async function playCard(card) {
-  if (dealing) return;
-  try { await api("/api/play", "POST", {code:roomCode, user_id:userId, card}); refreshState(); }
-  catch(e) {
-    beep(150,.2,"sawtooth");
-    if (e.error === "must_follow_suit") alert("باید از خال " + e.suit + " بازی کنی!");
-    else if (e.error === "not_your_turn") alert("نوبت شما نیست!");
-    else alert("حرکت نامعتبر");
-  }
-}
-async function sendChat() {
-  const input = document.getElementById("chatInput");
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = "";
-  try { await api("/api/chat", "POST", {code:roomCode, user_id:userId, text}); } catch(e){}
-}
-function renderChat(chat) {
-  if (!chat) return;
-  document.getElementById("chatBox").innerHTML =
-    chat.map(c => `<div><b>${esc(c.name)}:</b> ${esc(c.text)}</div>`).join("");
-}
-</script>
-</body>
-</html>
+    if (entries.length === 0 |
