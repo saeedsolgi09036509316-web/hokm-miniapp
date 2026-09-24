@@ -52,6 +52,13 @@ button:disabled{opacity:.35;box-shadow:none;}
 .players li{margin:6px 0;color:var(--text);}
 .status{text-align:center;margin:2px 0 10px;font-size:14px;color:var(--gold);min-height:20px;}
 
+.opt-label{margin:0 0 6px;font-size:13px;color:var(--text-dim);}
+.opt-row{display:flex;gap:8px;margin-bottom:4px;}
+.opt-btn{flex:1;width:auto;background:var(--glass);border:1px solid var(--glass-brd);color:var(--text);
+  font-weight:700;box-shadow:none;padding:10px;}
+.opt-btn.active{background:linear-gradient(135deg,var(--violet),var(--mint));color:#0c0e1f;
+  box-shadow:0 6px 18px rgba(139,147,255,.35);}
+
 .score{display:flex;gap:8px;align-items:stretch;}
 .chip{flex:1;border-radius:16px;padding:8px 8px;text-align:center;font-size:13px;
   background:var(--glass);border:1px solid var(--glass-brd);backdrop-filter:blur(14px);}
@@ -124,13 +131,24 @@ button:disabled{opacity:.35;box-shadow:none;}
     <button onclick="proceedFromName()">ادامه</button>
   </div>
   <div id="screen-lobby-choice" class="panel" style="display:none">
-    <button onclick="createRoom()">➕ ساخت اتاق جدید</button>
+    <p class="opt-label">تعداد بازیکن‌ها:</p>
+    <div class="opt-row">
+      <button type="button" class="opt-btn" data-players="2" onclick="selectPlayers(2)">۲ نفره</button>
+      <button type="button" class="opt-btn active" data-players="4" onclick="selectPlayers(4)">۴ نفره</button>
+    </div>
+    <p class="opt-label" style="margin-top:12px">بازی تا چند مچ؟</p>
+    <div class="opt-row">
+      <button type="button" class="opt-btn" data-score="3" onclick="selectScore(3)">۳ مچ</button>
+      <button type="button" class="opt-btn" data-score="5" onclick="selectScore(5)">۵ مچ</button>
+      <button type="button" class="opt-btn active" data-score="7" onclick="selectScore(7)">۷ مچ</button>
+    </div>
+    <button onclick="createRoom()" style="margin-top:14px">➕ ساخت اتاق جدید</button>
     <input id="joinCodeInput" placeholder="کد اتاق (برای پیوستن)" style="margin-top:10px">
     <button onclick="joinRoom()">🔗 پیوستن به اتاق</button>
   </div>
   <div id="screen-lobby" class="panel" style="display:none">
     <p>کد اتاق: <b id="roomCodeText" style="font-size:22px;color:var(--gold)"></b></p>
-    <p>این کد رو برای ۳ نفر دیگه بفرست تا وارد شوند. هم‌تیمی شما بازیکن روبه‌رویی است.</p>
+    <p id="lobbyInfo"></p>
     <ul id="playersList" class="players"></ul>
     <button id="startBtn" onclick="startGame()" style="display:none">▶️ شروع بازی</button>
   </div>
@@ -175,6 +193,7 @@ const tg = window.Telegram ? window.Telegram.WebApp : null;
 if (tg) tg.expand();
 let userId, userName, roomCode, pollTimer;
 let trickKey = "", handKey = "", lastTrickN = 0, lastTurnMe = false, muted = false, actx = null;
+let selectedPlayers = 4, selectedScore = 7;
 function tgUser() {
   if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return tg.initDataUnsafe.user;
   return null;
@@ -203,6 +222,14 @@ function show(id) {
   ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-finished"]
     .forEach(s => document.getElementById(s).style.display = (s===id ? "block":"none"));
 }
+function selectPlayers(n){
+  selectedPlayers = n;
+  document.querySelectorAll('.opt-btn[data-players]').forEach(b=>b.classList.toggle('active', Number(b.dataset.players)===n));
+}
+function selectScore(n){
+  selectedScore = n;
+  document.querySelectorAll('.opt-btn[data-score]').forEach(b=>b.classList.toggle('active', Number(b.dataset.score)===n));
+}
 function proceedFromName() {
   beep(520,.08);
   const music = document.getElementById("bgMusic");
@@ -227,7 +254,7 @@ async function api(path, method="GET", body=null) {
 }
 async function createRoom() {
   try {
-    const data = await api("/api/create", "POST", {user_id:userId, name:userName});
+    const data = await api("/api/create", "POST", {user_id:userId, name:userName, max_players:selectedPlayers, target_score:selectedScore});
     roomCode = data.code; enterLobby();
   } catch(e) { alert("خطا در ساخت اتاق"); }
 }
@@ -258,10 +285,13 @@ async function refreshState() {
 function render(state) {
   if (state.status === "waiting") {
     show("screen-lobby");
+    const maxP = state.max_players || 4;
+    document.getElementById("lobbyInfo").textContent =
+      `${state.players.length} از ${maxP} بازیکن — بازی تا ${state.target_score || 7} مچ`;
     document.getElementById("playersList").innerHTML =
       state.players.map((p,i) => `<li>${i%2?"🟠":"🟢"} ${esc(p.name)}</li>`).join("");
     document.getElementById("startBtn").style.display =
-      (state.host === userId && state.players.length === 4) ? "block" : "none";
+      (state.host === userId && state.players.length === maxP) ? "block" : "none";
   } else if (state.status === "choosing_hokm") {
     show("screen-trump");
     const buttons = document.querySelectorAll(".trump-picker button");
@@ -300,7 +330,7 @@ function renderGame(state) {
   const players = state.players;
   const myIdx = Math.max(0, players.findIndex(p=>p.id===userId));
   const myTeam = myIdx % 2;
-  const rel = pid => (players.findIndex(p=>p.id===pid) - myIdx + 4) % 4;
+  const rel = pid => (players.findIndex(p=>p.id===pid) - myIdx + players.length) % players.length;
   const tb = document.getElementById("trumpBox");
   document.getElementById("trumpDisplay").textContent = state.trump;
   tb.className = "trumpbox" + ((state.trump==="♥"||state.trump==="♦") ? " red":"");
