@@ -156,11 +156,22 @@ button:disabled{opacity:.35;box-shadow:none;}
 
 @keyframes drop{from{transform:translate(var(--dx),var(--dy)) scale(1.2);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes pulse{50%{box-shadow:0 0 0 7px rgba(242,197,124,.35);}}
+/* ---- انیمیشن پخش کارت ---- */
+.card-back{border-radius:11px;border:2px solid var(--ivory);
+  background:repeating-linear-gradient(45deg,rgba(255,255,255,.14) 0 4px,transparent 4px 8px),
+    linear-gradient(135deg,var(--violet),#5560d6 60%,var(--mint));
+  box-shadow:0 6px 16px rgba(0,0,0,.4);}
+#dealLayer{position:fixed;inset:0;pointer-events:none;z-index:55;overflow:hidden;}
+#dealLayer .deal-card,#dealLayer .deal-deck i{position:absolute;left:0;top:0;width:52px;height:76px;will-change:transform,opacity;}
+#dealLayer .deal-deck{position:absolute;width:52px;height:76px;transform:scale(.72);}
+.hakem-hand .card{animation:dealIn .45s cubic-bezier(.2,.8,.3,1) backwards;animation-delay:calc(var(--i,0)*90ms);}
+@keyframes dealIn{from{transform:translateY(-140px) rotate(-14deg) scale(.6);opacity:0;}to{transform:none;opacity:1;}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
 </style>
 </head>
 <body>
 <audio id="bgMusic" loop preload="auto" src="Toneloom%20Violin%20UpMusics.mp3"></audio>
+<div id="dealLayer"></div>
 <div id="app">
   <div class="top"><span style="width:40px"></span><h2>🃏 حکم آنلاین</h2><button id="muteBtn" onclick="toggleMute()">🔊</button></div>
   <div id="screen-name" class="panel">
@@ -253,8 +264,11 @@ let roundEndKey = "";
 let trumpHandKey = "";
 let trickRenderedPids = new Set();
 let lastChatCount = 0;
+let lastStatus = "", lastHandLen = -1, lastState = null;
+let dealing = false, dealPending = false, dealTimers = [], dealAnims = [];
 let chatBubbles = {}; // relative seat index -> {text, until}
 let chatPopupOpen = false;
+tryAutoStart();
 function toggleChatPopup(){
   chatPopupOpen = !chatPopupOpen;
   document.getElementById("chatPopup").style.display = chatPopupOpen ? "block" : "none";
@@ -297,17 +311,31 @@ function selectScore(n){
 }
 function proceedFromName() {
   beep(520,.08);
+  const tu = tgUser();
+  const name = document.getElementById("nameInput").value.trim() || (tu ? tu.first_name : "بازیکن");
+  startWithName(name);
+}
+function startWithName(name) {
+  const tu = tgUser();
+  userId = tu ? String(tu.id) : (localStorage.getItem("hokm_uid") || String(Date.now()));
+  if (!tu) { try { localStorage.setItem("hokm_uid", userId); } catch(e){} }
+  userName = name;
+  try { localStorage.setItem("hokm_name", userName); } catch(e){}
   const music = document.getElementById("bgMusic");
   if (music) { music.volume = 0.35; music.play().catch(()=>{}); }
-  const tu = tgUser();
-  userId = tu ? String(tu.id) : String(Date.now());
-  userName = document.getElementById("nameInput").value.trim() || (tu ? tu.first_name : "بازیکن");
   show("screen-lobby-choice");
   const startParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
   if (startParam && startParam.startsWith("hokm_")) {
     document.getElementById("joinCodeInput").value = startParam.replace("hokm_","");
     joinRoom();
   }
+}
+function tryAutoStart() {
+  let saved = null;
+  try { saved = localStorage.getItem("hokm_name"); } catch(e){}
+  const tu = tgUser();
+  if (saved) startWithName(saved);
+  else if (tu && tu.first_name) startWithName(tu.first_name);
 }
 async function api(path, method="GET", body=null) {
   const opts = {method, headers:{"Content-Type":"application/json"}};
@@ -371,6 +399,15 @@ function updateChatBubbles(state) {
 }
 function render(state) {
   updateChatBubbles(state);
+  if (state.status === "playing") {
+    const grew = lastStatus === "playing" && lastHandLen >= 0 && state.hand.length > lastHandLen;
+    if (((lastStatus && lastStatus !== "playing") || grew) && !prefersReduced()) dealPending = true;
+    lastHandLen = state.hand.length;
+  } else {
+    lastHandLen = -1;
+    if (dealing) cancelDeal();
+  }
+  lastStatus = state.status;
   if (state.status === "waiting") {
     show("screen-lobby");
     const maxP = state.max_players || 4;
@@ -391,7 +428,7 @@ function render(state) {
       const hk = state.hand.join("|");
       if (hk !== trumpHandKey) {
         trumpHandKey = hk;
-        handArea.innerHTML = state.hand.map(card => cardHtml(card)).join("");
+        handArea.innerHTML = state.hand.map((card,i) => cardHtml(card, "", `style="--i:${i}"`)).join("");
       }
     } else {
       buttons.forEach(b=>b.disabled=true);
@@ -434,6 +471,7 @@ function renderRoundEnd(state) {
   beep(rr.win_team===myTeam?740:260,.35,"triangle");
 }
 function renderGame(state) {
+  lastState = state;
   const players = state.players;
   const myIdx = Math.max(0, players.findIndex(p=>p.id===userId));
   const myTeam = myIdx % 2;
@@ -480,12 +518,96 @@ function renderGame(state) {
     });
   }
   const hk = state.hand.join("|") + (myTurn?"*":"");
-  if (hk !== handKey) {
+  if (hk !== handKey && !dealing) {
     handKey = hk;
     const h = document.getElementById("handArea");
     h.className = "hand" + (myTurn ? " mine" : "");
     h.innerHTML = state.hand.map(card => cardHtml(card, "", `onclick="playCard('${card}')"`)).join("");
+    if (dealPending) startDeal(state);
   }
+  dealPending = false;
+}
+/* ---- انیمیشن پخش کارت بین بازیکن‌ها ---- */
+function prefersReduced() {
+  return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+function cancelDeal() {
+  dealTimers.forEach(clearTimeout); dealTimers = [];
+  dealAnims.forEach(a => { try { a.cancel(); } catch(e){} }); dealAnims = [];
+  const layer = document.getElementById("dealLayer");
+  if (layer) layer.innerHTML = "";
+  document.querySelectorAll("#handArea .card").forEach(c => c.style.visibility = "");
+  dealing = false;
+}
+function finishDeal() {
+  cancelDeal();
+  if (lastState && lastState.status === "playing") { handKey = ""; renderGame(lastState); }
+}
+function startDeal(state) {
+  const layer = document.getElementById("dealLayer");
+  const cards = Array.from(document.getElementById("handArea").children);
+  const players = state.players, n = players.length;
+  if (!layer || !cards.length || !n || !layer.animate) return;
+  dealing = true;
+  cards.forEach(c => c.style.visibility = "hidden");
+  const myIdx = Math.max(0, players.findIndex(p => p.id === userId));
+  let first = players.findIndex(p => p.id === state.hakem);
+  if (first < 0) first = 0;
+  const per = cards.length, seq = [];
+  for (let i = 0; i < per; i++) for (let j = 0; j < n; j++) seq.push({p:(first + j) % n, i});
+  const step = Math.max(26, Math.min(70, 2000 / seq.length));
+  const T0 = 300, DUR = 440;
+  const f = document.getElementById("trick").getBoundingClientRect();
+  const cx = f.left + f.width / 2 - 26, cy = f.top + f.height / 2 - 38;
+  const deck = document.createElement("div");
+  deck.className = "deal-deck";
+  deck.style.left = cx + "px"; deck.style.top = cy + "px";
+  deck.innerHTML = [0,1,2].map(k => `<i class="card-back" style="transform:translate(${k*2}px,${-k*2}px)"></i>`).join("");
+  layer.appendChild(deck);
+  dealAnims.push(deck.animate([{opacity:0, transform:"scale(.3)"},{opacity:1, transform:"scale(.72)"}], {duration:220, easing:"ease-out"}));
+  seq.forEach((d, idx) => {
+    dealTimers.push(setTimeout(() => {
+      const rel = (d.p - myIdx + n) % n;
+      let tx, ty, s1, r1;
+      if (rel === 0) {
+        const r = cards[d.i].getBoundingClientRect();
+        tx = r.left + r.width / 2 - 26; ty = r.top + r.height / 2 - 38; s1 = r.width / 52; r1 = 0;
+      } else {
+        const seat = document.getElementById("seat" + rel);
+        const r = (seat.querySelector(".av") || seat).getBoundingClientRect();
+        tx = r.left + r.width / 2 - 26; ty = r.top + r.height / 2 - 38; s1 = .45; r1 = Math.random() * 40 - 20;
+      }
+      const from = `translate(${cx}px,${cy}px) scale(.72) rotate(${Math.random() * 16 - 8}deg)`;
+      const to = `translate(${tx}px,${ty}px) scale(${s1}) rotate(${r1}deg)`;
+      const el = document.createElement("div");
+      el.className = "card-back deal-card";
+      el.style.transform = from;
+      layer.appendChild(el);
+      const frames = rel === 0
+        ? [{transform:from, opacity:1},{transform:to, opacity:1}]
+        : [{transform:from, opacity:1},{transform:to, opacity:.9, offset:.8},{transform:to, opacity:0}];
+      const a = el.animate(frames, {duration:DUR, easing:"cubic-bezier(.22,.8,.3,1)", fill:"forwards"});
+      dealAnims.push(a);
+      beep(rel === 0 ? 760 : 520, .03, "triangle");
+      a.onfinish = () => {
+        el.remove();
+        if (!dealing) return;
+        if (rel === 0) {
+          const c = cards[d.i];
+          c.style.visibility = "";
+          c.animate([{transform:"scaleX(.1)"},{transform:"none"}], {duration:160, easing:"ease-out"});
+        } else {
+          const av = document.querySelector("#seat" + rel + " .av");
+          if (av) av.animate([{transform:"scale(1)"},{transform:"scale(1.14)"},{transform:"scale(1)"}], {duration:150});
+        }
+      };
+    }, T0 + idx * step));
+  });
+  const tLast = T0 + (seq.length - 1) * step;
+  dealTimers.push(setTimeout(() => {
+    dealAnims.push(deck.animate([{opacity:1},{opacity:0}], {duration:220, fill:"forwards"}));
+  }, tLast));
+  dealTimers.push(setTimeout(finishDeal, tLast + DUR + 250));
 }
 async function startGame() {
   try { await api("/api/start", "POST", {code:roomCode, user_id:userId}); }
@@ -496,6 +618,7 @@ async function chooseTrump(suit) {
   catch(e) { alert("فقط حاکم می‌تونه حکم رو انتخاب کنه"); }
 }
 async function playCard(card) {
+  if (dealing) return;
   try { await api("/api/play", "POST", {code:roomCode, user_id:userId, card}); refreshState(); }
   catch(e) {
     beep(150,.2,"sawtooth");
