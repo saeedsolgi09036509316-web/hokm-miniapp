@@ -266,7 +266,7 @@ def chat():
 
 @app.route("/")
 def health():
-    return "Hokm backend is running."
+    return open("index.html", encoding="utf-8").read()
 
 
 if __name__ == "__main__":
