@@ -2,41 +2,72 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>حکم آنلاین</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#0b3d2e; --card-bg:#fff; --card-red:#c0392b; --card-black:#111;
-    --accent:#f1c40f; --panel:#0f4a37;
-  }
-  *{box-sizing:border-box;}
-  body{margin:0;font-family:Tahoma,sans-serif;background:var(--bg);color:#fff;min-height:100vh;}
-  #app{max-width:480px;margin:0 auto;padding:10px;}
-  h2{text-align:center;margin:8px 0;}
-  .panel{background:var(--panel);border-radius:12px;padding:12px;margin-bottom:10px;}
-  input,button{font-family:inherit;font-size:16px;border-radius:8px;border:none;padding:10px;}
-  input{width:100%;margin-bottom:8px;}
-  button{background:var(--accent);color:#000;font-weight:bold;width:100%;cursor:pointer;}
-  button:disabled{opacity:.5;}
-  .players li{margin:4px 0;}
-  .table-area{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0;min-height:90px;}
-  .card{background:var(--card-bg);border-radius:8px;padding:8px 4px;min-width:42px;text-align:center;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.4);}
-  .card.red{color:var(--card-red);}
-  .card.black{color:var(--card-black);}
-  .hand{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
-  .hand .card{cursor:pointer;}
-  .hand .card:active{transform:translateY(-6px);}
-  .scoreboard{display:flex;justify-content:space-between;font-size:14px;}
-  .trump-picker{display:flex;gap:8px;justify-content:center;}
-  .trump-picker button{width:auto;flex:1;font-size:22px;}
-  .chatbox{max-height:120px;overflow-y:auto;font-size:13px;margin-bottom:6px;}
-  .status{text-align:center;margin:6px 0;font-size:14px;color:#ffe08a;}
+:root{--felt:#0c4632;--felt2:#0a3828;--wood:#5b3a1f;--ivory:#fbf8ef;--red:#b3261e;--ink:#15181c;--gold:#e8b93c;--me:#2bb7a6;--opp:#e2765a;--panel:#0f4f39;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{margin:0;font-family:Vazirmatn,Tahoma,sans-serif;background:radial-gradient(circle at 50% 0,#12603f,#062419 80%);color:#fff;min-height:100vh;}
+#app{max-width:480px;margin:0 auto;padding:10px 10px 30px;}
+h2{text-align:center;margin:6px 0 10px;font-weight:900;letter-spacing:0;}
+.top{display:flex;align-items:center;justify-content:space-between;}
+#muteBtn{width:40px;padding:6px;background:#0000002e;color:#fff;font-size:18px;}
+.panel{background:var(--panel);border-radius:14px;padding:12px;margin-bottom:10px;box-shadow:0 2px 0 #0004;}
+input,button{font-family:inherit;font-size:16px;border-radius:10px;border:none;padding:11px;}
+input{width:100%;margin-bottom:8px;}
+button{background:var(--gold);color:#241a00;font-weight:700;width:100%;cursor:pointer;}
+button:active{transform:scale(.97);}
+button:disabled{opacity:.4;}
+.players li{margin:4px 0;}
+.status{text-align:center;margin:4px 0 8px;font-size:14px;color:#ffe08a;min-height:20px;}
+.score{display:flex;gap:8px;align-items:stretch;}
+.chip{flex:1;border-radius:12px;padding:6px 8px;text-align:center;font-size:13px;}
+.chip b{display:block;font-size:20px;}
+.chip.me{background:#2bb7a633;border:1px solid var(--me);}
+.chip.opp{background:#e2765a33;border:1px solid var(--opp);}
+.trumpbox{width:64px;border-radius:12px;background:var(--ivory);color:var(--ink);text-align:center;font-size:30px;line-height:1;padding-top:8px;}
+.trumpbox small{display:block;font-size:11px;color:#555;margin-top:2px;}
+.trumpbox.red{color:var(--red);}
+.table{direction:ltr;display:grid;grid-template-columns:64px 1fr 64px;grid-template-rows:76px 200px 76px;grid-template-areas:". top ." "left felt right" ". bot .";gap:4px;margin:8px 0;}
+.seat{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;gap:3px;}
+.s0{grid-area:bot}.s1{grid-area:right}.s2{grid-area:top}.s3{grid-area:left}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:16px;color:#08201a;position:relative;border:3px solid transparent;}
+.av.t0{background:var(--me)}.av.t1{background:var(--opp)}
+.av.turn{border-color:var(--gold);animation:pulse 1.1s infinite;}
+.av .crown{position:absolute;top:-14px;font-size:14px;}
+.nm{max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.felt{grid-area:felt;background:radial-gradient(ellipse at center,var(--felt),var(--felt2));border:8px solid var(--wood);border-radius:50%/42%;position:relative;box-shadow:inset 0 0 24px #0008;}
+#trick{position:absolute;inset:0;}
+.card{background:var(--ivory);color:var(--ink);border-radius:9px;width:46px;height:66px;font-weight:900;position:relative;box-shadow:0 2px 5px #0006;user-select:none;}
+.card.red{color:var(--red);}
+.card .r{position:absolute;top:4px;right:6px;font-size:15px;line-height:1;}
+.card .s{position:absolute;inset:0;display:grid;place-items:center;font-size:26px;}
+.card .r2{position:absolute;bottom:4px;left:6px;font-size:15px;line-height:1;transform:rotate(180deg);}
+#trick .card{position:absolute;}
+.tc0{left:calc(50% - 23px);bottom:6px;--dx:0;--dy:90px;}
+.tc2{left:calc(50% - 23px);top:6px;--dx:0;--dy:-90px;}
+.tc1{right:16px;top:calc(50% - 33px);--dx:90px;--dy:0;}
+.tc3{left:16px;top:calc(50% - 33px);--dx:-90px;--dy:0;}
+#trick .card.drop{animation:drop .35s ease-out;}
+.hand{display:flex;justify-content:center;padding:8px 0 4px;min-height:84px;direction:ltr;}
+.hand .card{margin-left:-14px;width:52px;height:76px;transition:transform .15s;opacity:.55;}
+.hand .card:first-child{margin-left:0;}
+.hand.mine .card{opacity:1;cursor:pointer;}
+.hand.mine .card:active{transform:translateY(-14px);}
+.trump-picker{display:flex;gap:8px;}
+.trump-picker button{background:var(--ivory);color:var(--ink);font-size:26px;padding:8px;}
+.trump-picker button:nth-child(2),.trump-picker button:nth-child(3){color:var(--red);}
+.chatbox{max-height:110px;overflow-y:auto;font-size:13px;margin-bottom:6px;}
+@keyframes drop{from{transform:translate(var(--dx),var(--dy)) scale(1.2);opacity:0;}to{transform:none;opacity:1;}}
+@keyframes pulse{50%{box-shadow:0 0 0 6px #e8b93c44;}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
 </style>
 </head>
 <body>
 <div id="app">
-  <h2>🃏 حکم آنلاین</h2>
+  <div class="top"><span style="width:40px"></span><h2>🃏 حکم آنلاین</h2><button id="muteBtn" onclick="toggleMute()">🔊</button></div>
 
   <div id="screen-name" class="panel">
     <p>اسم شما در بازی:</p>
@@ -51,8 +82,8 @@
   </div>
 
   <div id="screen-lobby" class="panel" style="display:none">
-    <p>کد اتاق: <b id="roomCodeText"></b></p>
-    <p>این کد رو برای ۳ نفر دیگه بفرست تا وارد شوند</p>
+    <p>کد اتاق: <b id="roomCodeText" style="font-size:22px;color:var(--gold)"></b></p>
+    <p>این کد رو برای ۳ نفر دیگه بفرست تا وارد شوند. هم‌تیمی شما بازیکن روبه‌رویی است.</p>
     <ul id="playersList" class="players"></ul>
     <button id="startBtn" onclick="startGame()" style="display:none">▶️ شروع بازی</button>
   </div>
@@ -67,18 +98,25 @@
     </div>
   </div>
 
-  <div id="screen-game" class="panel" style="display:none">
-    <div class="scoreboard">
-      <span>حکم: <b id="trumpDisplay"></b></span>
-      <span id="scoreDisplay"></span>
+  <div id="screen-game" style="display:none">
+    <div class="score">
+      <div class="chip me">ما<b id="scMe">0</b><span id="trMe"></span></div>
+      <div class="trumpbox" id="trumpBox"><span id="trumpDisplay"></span><small>حکم</small></div>
+      <div class="chip opp">حریف<b id="scOpp">0</b><span id="trOpp"></span></div>
     </div>
     <div class="status" id="turnStatus"></div>
-    <div class="table-area" id="tableArea"></div>
+    <div class="table">
+      <div class="seat s2" id="seat2"></div>
+      <div class="seat s3" id="seat3"></div>
+      <div class="felt"><div id="trick"></div></div>
+      <div class="seat s1" id="seat1"></div>
+      <div class="seat s0" id="seat0"></div>
+    </div>
     <div class="hand" id="handArea"></div>
   </div>
 
   <div id="screen-finished" class="panel" style="display:none">
-    <p id="finishedMsg" style="text-align:center;font-size:18px"></p>
+    <p id="finishedMsg" style="text-align:center;font-size:20px;font-weight:900"></p>
   </div>
 
   <div class="panel">
@@ -89,20 +127,35 @@
 </div>
 
 <script>
-// بعد از دیپلوی بک‌اند، آدرسش رو اینجا جایگزین کن
-const BACKEND_URL = "https://hokm-miniapp.onrender.com";
+// همان دامنه‌ی سرور؛ نیازی به تغییر نیست
+const BACKEND_URL = "";
 
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 if (tg) tg.expand();
 
 let userId, userName, roomCode, pollTimer;
+let trickKey = "", handKey = "", lastTrickN = 0, lastTurnMe = false, muted = false, actx = null;
 
 function tgUser() {
-  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-    return tg.initDataUnsafe.user;
-  }
+  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return tg.initDataUnsafe.user;
   return null;
 }
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+/* ---- صدا ---- */
+function beep(f, d, t){
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = t||"sine"; o.frequency.value = f;
+    g.gain.setValueAtTime(.15, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, actx.currentTime + d);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + d);
+  } catch(e){}
+}
+function toggleMute(){ muted = !muted; document.getElementById("muteBtn").textContent = muted ? "🔇" : "🔊"; }
 
 function show(id) {
   ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-finished"]
@@ -110,11 +163,11 @@ function show(id) {
 }
 
 function proceedFromName() {
+  beep(520,.08);
   const tu = tgUser();
   userId = tu ? String(tu.id) : String(Date.now());
   userName = document.getElementById("nameInput").value.trim() || (tu ? tu.first_name : "بازیکن");
   show("screen-lobby-choice");
-
   const startParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
   if (startParam && startParam.startsWith("hokm_")) {
     document.getElementById("joinCodeInput").value = startParam.replace("hokm_","");
@@ -134,8 +187,7 @@ async function api(path, method="GET", body=null) {
 async function createRoom() {
   try {
     const data = await api("/api/create", "POST", {user_id:userId, name:userName});
-    roomCode = data.code;
-    enterLobby();
+    roomCode = data.code; enterLobby();
   } catch(e) { alert("خطا در ساخت اتاق"); }
 }
 
@@ -144,8 +196,7 @@ async function joinRoom() {
   if (!code) return;
   try {
     await api("/api/join", "POST", {code, user_id:userId, name:userName});
-    roomCode = code;
-    enterLobby();
+    roomCode = code; enterLobby();
   } catch(e) { alert(e.error === "room_full" ? "اتاق پره" : "اتاق پیدا نشد"); }
 }
 
@@ -172,7 +223,7 @@ function render(state) {
   if (state.status === "waiting") {
     show("screen-lobby");
     document.getElementById("playersList").innerHTML =
-      state.players.map(p => `<li>${p.name}</li>`).join("");
+      state.players.map((p,i) => `<li>${i%2?"🟠":"🟢"} ${esc(p.name)}</li>`).join("");
     document.getElementById("startBtn").style.display =
       (state.host === userId && state.players.length === 4) ? "block" : "none";
   } else if (state.status === "choosing_hokm") {
@@ -192,37 +243,75 @@ function render(state) {
     renderGame(state);
   } else if (state.status === "finished") {
     show("screen-finished");
-    const winnerTeam = state.winner_team;
-    const names = state.players.filter((p,i)=> i%2===winnerTeam).map(p=>p.name).join(" و ");
-    document.getElementById("finishedMsg").textContent =
-      winnerTeam != null ? `🎉 تیم ${names} برنده شد!` : "بازی تمام شد";
+    const myTeam = Math.max(0, state.players.findIndex(p=>p.id===userId)) % 2;
+    const w = state.winner_team;
+    const names = state.players.filter((p,i)=> i%2===w).map(p=>esc(p.name)).join(" و ");
+    document.getElementById("finishedMsg").innerHTML =
+      w == null ? "بازی تمام شد" : (w === myTeam ? "🎉 تیم شما برنده شد!" : "تیم حریف برنده شد") + `<br><small>${names}</small>`;
+    if (trickKey !== "end") { trickKey = "end"; beep(w===myTeam?880:220,.5,"triangle"); }
   }
   renderChat(state.chat);
 }
 
-function suitColor(card) {
-  return (card.includes("♥") || card.includes("♦")) ? "red" : "black";
+function parseCard(card) {
+  const suit = (card.match(/[♠♥♦♣]/)||["?"])[0];
+  return {suit, rank: card.replace(suit,"").trim(), red: suit==="♥"||suit==="♦"};
+}
+function cardHtml(card, extra="", attrs="") {
+  const c = parseCard(card);
+  return `<div class="card ${c.red?"red":""} ${extra}" ${attrs}><span class="r">${c.rank}</span><span class="s">${c.suit}</span><span class="r2">${c.rank}</span></div>`;
 }
 
 function renderGame(state) {
+  const players = state.players;
+  const myIdx = Math.max(0, players.findIndex(p=>p.id===userId));
+  const myTeam = myIdx % 2;
+  const rel = pid => (players.findIndex(p=>p.id===pid) - myIdx + 4) % 4;
+
+  // امتیاز و حکم
+  const tb = document.getElementById("trumpBox");
   document.getElementById("trumpDisplay").textContent = state.trump;
-  document.getElementById("scoreDisplay").textContent =
-    `دست: ${state.tricks_won[0]}-${state.tricks_won[1]} | امتیاز: ${state.round_scores[0]}-${state.round_scores[1]}`;
+  tb.className = "trumpbox" + ((state.trump==="♥"||state.trump==="♦") ? " red":"");
+  document.getElementById("scMe").textContent = state.round_scores[myTeam];
+  document.getElementById("scOpp").textContent = state.round_scores[1-myTeam];
+  document.getElementById("trMe").textContent = "دست: " + state.tricks_won[myTeam];
+  document.getElementById("trOpp").textContent = "دست: " + state.tricks_won[1-myTeam];
 
+  // نوبت
   const myTurn = state.turn === userId;
-  const turnName = (state.players.find(p=>p.id===state.turn)||{}).name || "";
+  const turnName = (players.find(p=>p.id===state.turn)||{}).name || "";
   document.getElementById("turnStatus").textContent = myTurn ? "نوبت شماست!" : `نوبت: ${turnName}`;
+  if (myTurn && !lastTurnMe) { beep(660,.12); setTimeout(()=>beep(880,.12),130); }
+  lastTurnMe = myTurn;
 
-  const tableArea = document.getElementById("tableArea");
-  tableArea.innerHTML = Object.entries(state.trick).map(([pid,card]) => {
-    const name = (state.players.find(p=>p.id===pid)||{}).name || "";
-    return `<div><div class="card ${suitColor(card)}">${card}</div><div style="font-size:11px;text-align:center">${name}</div></div>`;
-  }).join("");
+  // صندلی‌ها
+  for (let s=0; s<4; s++) document.getElementById("seat"+s).innerHTML = "";
+  players.forEach((p,i) => {
+    const s = rel(p.id);
+    const team = i % 2 === myTeam ? 0 : 1;
+    document.getElementById("seat"+s).innerHTML =
+      `<div class="av t${team} ${state.turn===p.id?"turn":""}">${state.hakem===p.id?'<span class="crown">👑</span>':""}${esc(p.name.charAt(0))}</div><div class="nm">${s===0?"شما":esc(p.name)}</div>`;
+  });
 
-  const handArea = document.getElementById("handArea");
-  handArea.innerHTML = state.hand.map(card =>
-    `<div class="card ${suitColor(card)}" onclick="playCard('${card}')">${card}</div>`
-  ).join("");
+  // میز
+  const entries = Object.entries(state.trick);
+  const tk = entries.map(([pid,c])=>pid+c).join("|");
+  if (tk !== trickKey) {
+    if (entries.length > lastTrickN) beep(300,.09,"square");
+    lastTrickN = entries.length;
+    trickKey = tk;
+    document.getElementById("trick").innerHTML = entries.map(([pid,card]) =>
+      cardHtml(card, `tc${rel(pid)} drop`)).join("");
+  }
+
+  // دست
+  const hk = state.hand.join("|") + (myTurn?"*":"");
+  if (hk !== handKey) {
+    handKey = hk;
+    const h = document.getElementById("handArea");
+    h.className = "hand" + (myTurn ? " mine" : "");
+    h.innerHTML = state.hand.map(card => cardHtml(card, "", `onclick="playCard('${card}')"`)).join("");
+  }
 }
 
 async function startGame() {
@@ -238,6 +327,7 @@ async function chooseTrump(suit) {
 async function playCard(card) {
   try { await api("/api/play", "POST", {code:roomCode, user_id:userId, card}); refreshState(); }
   catch(e) {
+    beep(150,.2,"sawtooth");
     if (e.error === "must_follow_suit") alert("باید از خال " + e.suit + " بازی کنی!");
     else if (e.error === "not_your_turn") alert("نوبت شما نیست!");
     else alert("حرکت نامعتبر");
@@ -255,7 +345,7 @@ async function sendChat() {
 function renderChat(chat) {
   if (!chat) return;
   document.getElementById("chatBox").innerHTML =
-    chat.map(c => `<div><b>${c.name}:</b> ${c.text}</div>`).join("");
+    chat.map(c => `<div><b>${esc(c.name)}:</b> ${esc(c.text)}</div>`).join("");
 }
 </script>
 </body>
