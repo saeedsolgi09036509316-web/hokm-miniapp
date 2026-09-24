@@ -19,6 +19,11 @@ ROUND_PAUSE = 2.0  # حداکثر چند ثانیه خلاصه‌ی برنده/�
 rooms = {}
 lock = threading.Lock()
 
+# ---------- بازی نقطه‌چین (Dots and Boxes) ----------
+dots_rooms = {}
+dots_lock = threading.Lock()
+DOTS_GRID = {50: (5, 10), 100: (10, 10), 150: (10, 15)}  # (rows, cols) تعداد نقطه‌ها
+
 
 def new_deck():
     deck = [f"{r}{s}" for s in SUITS for r in RANKS]
@@ -350,6 +355,194 @@ def chat():
         if not room:
             return jsonify({"error": "room_not_found"}), 404
         name = get_player(room, uid)["name"] if any(p["id"] == uid for p in room["players"]) else "?"
+        room.setdefault("chat", []).append({"name": name, "text": text})
+    return jsonify({"ok": True})
+
+
+def dots_gen_code():
+    while True:
+        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
+        if code not in dots_rooms:
+            return code
+
+
+def dots_new_room(code, uid, name, max_players, dots_count):
+    rows, cols = DOTS_GRID.get(dots_count, (10, 10))
+    return {
+        "code": code, "host": uid,
+        "players": [{"id": uid, "name": name}],
+        "status": "waiting",
+        "max_players": max_players, "dots_count": dots_count,
+        "rows": rows, "cols": cols,
+        "h_lines": [[None] * (cols - 1) for _ in range(rows)],
+        "v_lines": [[None] * cols for _ in range(rows - 1)],
+        "boxes": [[None] * (cols - 1) for _ in range(rows - 1)],
+        "scores": {uid: 0},
+        "turn": None,
+        "winners": None,
+        "chat": [],
+    }
+
+
+def dots_next_player(room, uid):
+    n = len(room["players"])
+    idx = next(i for i, p in enumerate(room["players"]) if p["id"] == uid)
+    return room["players"][(idx + 1) % n]["id"]
+
+
+def dots_box_complete(room, br, bc):
+    R, C = room["rows"], room["cols"]
+    if br < 0 or br > R - 2 or bc < 0 or bc > C - 2:
+        return False
+    top = room["h_lines"][br][bc]
+    bottom = room["h_lines"][br + 1][bc]
+    left = room["v_lines"][br][bc]
+    right = room["v_lines"][br][bc + 1]
+    return top is not None and bottom is not None and left is not None and right is not None
+
+
+def dots_public_state(room, uid):
+    players_info = [{"id": p["id"], "name": p["name"], "seat": i} for i, p in enumerate(room["players"])]
+    return {
+        "code": room["code"],
+        "host": room["host"],
+        "status": room["status"],
+        "players": players_info,
+        "max_players": room.get("max_players"),
+        "dots_count": room.get("dots_count"),
+        "rows": room["rows"], "cols": room["cols"],
+        "h_lines": room["h_lines"], "v_lines": room["v_lines"], "boxes": room["boxes"],
+        "scores": room.get("scores", {}),
+        "turn": room.get("turn"),
+        "winners": room.get("winners"),
+        "chat": room.get("chat", [])[-30:],
+    }
+
+
+@app.route("/api/dots/create", methods=["POST"])
+def dots_create():
+    data = request.json
+    uid, name = str(data["user_id"]), data.get("name", "بازیکن")
+    max_players = int(data.get("max_players", 2))
+    if max_players < 1:
+        max_players = 1
+    if max_players > 10:
+        max_players = 10
+    dots_count = int(data.get("dots_count", 100))
+    if dots_count not in DOTS_GRID:
+        dots_count = 100
+    with dots_lock:
+        code = dots_gen_code()
+        dots_rooms[code] = dots_new_room(code, uid, name, max_players, dots_count)
+    return jsonify({"code": code, "state": dots_public_state(dots_rooms[code], uid)})
+
+
+@app.route("/api/dots/join", methods=["POST"])
+def dots_join():
+    data = request.json
+    code, uid, name = data["code"].upper(), str(data["user_id"]), data.get("name", "بازیکن")
+    with dots_lock:
+        room = dots_rooms.get(code)
+        if not room:
+            return jsonify({"error": "room_not_found"}), 404
+        if any(p["id"] == uid for p in room["players"]):
+            return jsonify({"state": dots_public_state(room, uid)})
+        if room["status"] != "waiting":
+            return jsonify({"error": "already_started"}), 400
+        if len(room["players"]) >= room.get("max_players", 2):
+            return jsonify({"error": "room_full"}), 400
+        room["players"].append({"id": uid, "name": name})
+        room["scores"][uid] = 0
+    return jsonify({"state": dots_public_state(room, uid)})
+
+
+@app.route("/api/dots/state")
+def dots_state():
+    code, uid = request.args.get("code", "").upper(), str(request.args.get("user_id"))
+    room = dots_rooms.get(code)
+    if not room:
+        return jsonify({"error": "room_not_found"}), 404
+    return jsonify({"state": dots_public_state(room, uid)})
+
+
+@app.route("/api/dots/start", methods=["POST"])
+def dots_start():
+    data = request.json
+    code, uid = data["code"].upper(), str(data["user_id"])
+    with dots_lock:
+        room = dots_rooms.get(code)
+        if not room:
+            return jsonify({"error": "room_not_found"}), 404
+        if room["host"] != uid:
+            return jsonify({"error": "not_host"}), 403
+        if room["status"] != "waiting":
+            return jsonify({"error": "invalid_state"}), 400
+        if not room["players"]:
+            return jsonify({"error": "need_more_players"}), 400
+        room["status"] = "playing"
+        room["turn"] = room["players"][0]["id"]
+    return jsonify({"state": dots_public_state(room, uid)})
+
+
+@app.route("/api/dots/move", methods=["POST"])
+def dots_move():
+    data = request.json
+    code, uid = data["code"].upper(), str(data["user_id"])
+    line_type, row, col = data["type"], int(data["row"]), int(data["col"])
+    with dots_lock:
+        room = dots_rooms.get(code)
+        if not room or room["status"] != "playing":
+            return jsonify({"error": "invalid_state"}), 400
+        if room["turn"] != uid:
+            return jsonify({"error": "not_your_turn"}), 400
+        R, C = room["rows"], room["cols"]
+        if line_type == "h":
+            if not (0 <= row < R and 0 <= col < C - 1):
+                return jsonify({"error": "invalid_move"}), 400
+            if room["h_lines"][row][col] is not None:
+                return jsonify({"error": "line_taken"}), 400
+            room["h_lines"][row][col] = uid
+            candidates = [(row - 1, col), (row, col)]
+        elif line_type == "v":
+            if not (0 <= row < R - 1 and 0 <= col < C):
+                return jsonify({"error": "invalid_move"}), 400
+            if room["v_lines"][row][col] is not None:
+                return jsonify({"error": "line_taken"}), 400
+            room["v_lines"][row][col] = uid
+            candidates = [(row, col - 1), (row, col)]
+        else:
+            return jsonify({"error": "invalid_move"}), 400
+
+        completed = False
+        for br, bc in candidates:
+            if 0 <= br <= R - 2 and 0 <= bc <= C - 2 and room["boxes"][br][bc] is None \
+                    and dots_box_complete(room, br, bc):
+                room["boxes"][br][bc] = uid
+                room["scores"][uid] = room["scores"].get(uid, 0) + 1
+                completed = True
+
+        if not completed:
+            room["turn"] = dots_next_player(room, uid)
+
+        total_boxes = (R - 1) * (C - 1)
+        filled = sum(1 for r in room["boxes"] for b in r if b is not None)
+        if filled >= total_boxes:
+            room["status"] = "finished"
+            best = max(room["scores"].values()) if room["scores"] else 0
+            room["winners"] = [pid for pid, s in room["scores"].items() if s == best]
+    return jsonify({"state": dots_public_state(room, uid)})
+
+
+@app.route("/api/dots/chat", methods=["POST"])
+def dots_chat():
+    data = request.json
+    code, uid, text = data["code"].upper(), str(data["user_id"]), data.get("text", "")[:300]
+    with dots_lock:
+        room = dots_rooms.get(code)
+        if not room:
+            return jsonify({"error": "room_not_found"}), 404
+        player = next((p for p in room["players"] if p["id"] == uid), None)
+        name = player["name"] if player else "?"
         room.setdefault("chat", []).append({"name": name, "text": text})
     return jsonify({"ok": True})
 
