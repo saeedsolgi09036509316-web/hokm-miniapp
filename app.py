@@ -576,6 +576,252 @@ def dots_chat():
     return jsonify({"ok": True})
 
 
+# ---------- بازی اسم و فامیل ----------
+nf_rooms = {}
+nf_lock = threading.Lock()
+
+NF_CATEGORIES = ["اسم", "فامیل", "شهر", "حیوان", "میوه", "رنگ", "غذا"]
+NF_LETTERS = ["ا", "آ", "ب", "پ", "ت", "ج", "چ", "د", "ر", "ز", "س", "ش",
+              "ص", "ط", "ف", "ق", "ک", "گ", "ل", "م", "ن", "و", "ه", "ی"]
+NF_ROUND_TIME = 60    # ثانیه؛ زمان هر دور
+NF_GRACE_TIME = 5     # بعد از اینکه یه نفر «تمام» زد، بقیه چقدر فرصت دارن
+NF_RESULT_PAUSE = 7   # چند ثانیه نتیجه‌ی هر دور نمایش داده بشه
+
+NF_CHAR_MAP = str.maketrans({"ي": "ی", "ك": "ک", "ة": "ه", "ۀ": "ه", "إ": "ا", "أ": "ا", "ٱ": "ا"})
+
+
+def nf_norm(s):
+    return (s or "").strip().translate(NF_CHAR_MAP)
+
+
+def nf_gen_code():
+    while True:
+        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
+        if code not in nf_rooms:
+            return code
+
+
+def nf_next_letter(room):
+    remaining = [l for l in NF_LETTERS if l not in room["used_letters"]]
+    if not remaining:
+        room["used_letters"] = []
+        remaining = NF_LETTERS[:]
+    letter = random.choice(remaining)
+    room["used_letters"].append(letter)
+    return letter
+
+
+def nf_new_room(code, uid, name, max_players, target_rounds):
+    return {
+        "code": code, "host": uid,
+        "players": [{"id": uid, "name": name}],
+        "status": "waiting",
+        "max_players": max_players, "target_rounds": target_rounds,
+        "round": 0, "letter": None, "used_letters": [],
+        "round_end_at": None, "finished_by": None, "grace_until": None,
+        "answers": {}, "scores": {uid: 0},
+        "round_result": None, "round_result_until": None,
+        "winners": None, "chat": [],
+    }
+
+
+def nf_start_round(room):
+    room["round"] += 1
+    room["letter"] = nf_next_letter(room)
+    room["round_end_at"] = time.time() + NF_ROUND_TIME
+    room["finished_by"] = None
+    room["grace_until"] = None
+    room["answers"] = {p["id"]: {} for p in room["players"]}
+    room["status"] = "playing"
+    room["round_result"] = None
+    room["round_result_until"] = None
+
+
+def nf_resolve_round(room):
+    letter = room["letter"]
+    per_category = {}
+    for cat in NF_CATEGORIES:
+        counts = {}
+        valid_of = {}
+        for p in room["players"]:
+            ans = nf_norm(room["answers"].get(p["id"], {}).get(cat, ""))
+            ok = bool(ans) and ans[0] == letter
+            valid_of[p["id"]] = ans if ok else ""
+            if ok:
+                counts[ans] = counts.get(ans, 0) + 1
+        per_category[cat] = (valid_of, counts)
+
+    breakdown = {p["id"]: {} for p in room["players"]}
+    round_scores = {p["id"]: 0 for p in room["players"]}
+    for cat in NF_CATEGORIES:
+        valid_of, counts = per_category[cat]
+        for p in room["players"]:
+            uid = p["id"]
+            ans_raw = room["answers"].get(uid, {}).get(cat, "") or ""
+            valid = valid_of[uid]
+            if not valid:
+                pts = 0
+            elif counts[valid] > 1:
+                pts = 5
+            else:
+                pts = 10
+            breakdown[uid][cat] = {"answer": ans_raw, "points": pts}
+            round_scores[uid] += pts
+
+    for uid, pts in round_scores.items():
+        room["scores"][uid] = room["scores"].get(uid, 0) + pts
+
+    room["round_result"] = {"letter": letter, "breakdown": breakdown, "round_scores": round_scores}
+    room["round_result_until"] = time.time() + NF_RESULT_PAUSE
+    room["status"] = "round_result"
+
+
+def nf_resolve_room(room):
+    if room["status"] == "playing":
+        now = time.time()
+        timeout = room.get("round_end_at") and now >= room["round_end_at"]
+        grace_done = room.get("grace_until") and now >= room["grace_until"]
+        if timeout or grace_done:
+            nf_resolve_round(room)
+    elif room["status"] == "round_result":
+        if room.get("round_result_until") and time.time() >= room["round_result_until"]:
+            if room["round"] >= room["target_rounds"]:
+                best = max(room["scores"].values()) if room["scores"] else 0
+                room["winners"] = [uid for uid, s in room["scores"].items() if s == best]
+                room["status"] = "finished"
+            else:
+                nf_start_round(room)
+
+
+def nf_public_state(room, uid):
+    players_info = [{"id": p["id"], "name": p["name"], "seat": i} for i, p in enumerate(room["players"])]
+    return {
+        "code": room["code"], "host": room["host"], "status": room["status"],
+        "players": players_info, "max_players": room.get("max_players"),
+        "target_rounds": room.get("target_rounds"), "round": room.get("round"),
+        "letter": room.get("letter"), "categories": NF_CATEGORIES,
+        "round_end_at": room.get("round_end_at"), "finished_by": room.get("finished_by"),
+        "grace_until": room.get("grace_until"),
+        "scores": room.get("scores", {}),
+        "round_result": room.get("round_result"),
+        "winners": room.get("winners"),
+        "chat": room.get("chat", [])[-30:],
+    }
+
+
+@app.route("/api/nf/create", methods=["POST"])
+def nf_create():
+    data = request.json
+    uid, name = str(data["user_id"]), data.get("name", "بازیکن")
+    max_players = int(data.get("max_players", 4))
+    if max_players not in (2, 3, 4, 5, 6):
+        max_players = 4
+    target_rounds = int(data.get("target_rounds", 5))
+    if target_rounds not in (3, 5, 8):
+        target_rounds = 5
+    with nf_lock:
+        code = nf_gen_code()
+        nf_rooms[code] = nf_new_room(code, uid, name, max_players, target_rounds)
+    return jsonify({"code": code, "state": nf_public_state(nf_rooms[code], uid)})
+
+
+@app.route("/api/nf/join", methods=["POST"])
+def nf_join():
+    data = request.json
+    code, uid, name = data["code"].upper(), str(data["user_id"]), data.get("name", "بازیکن")
+    with nf_lock:
+        room = nf_rooms.get(code)
+        if not room:
+            return jsonify({"error": "room_not_found"}), 404
+        if any(p["id"] == uid for p in room["players"]):
+            return jsonify({"state": nf_public_state(room, uid)})
+        if room["status"] != "waiting":
+            return jsonify({"error": "already_started"}), 400
+        if len(room["players"]) >= room.get("max_players", 4):
+            return jsonify({"error": "room_full"}), 400
+        room["players"].append({"id": uid, "name": name})
+        room["scores"][uid] = 0
+    return jsonify({"state": nf_public_state(room, uid)})
+
+
+@app.route("/api/nf/state")
+def nf_state():
+    code, uid = request.args.get("code", "").upper(), str(request.args.get("user_id"))
+    room = nf_rooms.get(code)
+    if not room:
+        return jsonify({"error": "room_not_found"}), 404
+    with nf_lock:
+        nf_resolve_room(room)
+    return jsonify({"state": nf_public_state(room, uid)})
+
+
+@app.route("/api/nf/start", methods=["POST"])
+def nf_start():
+    data = request.json
+    code, uid = data["code"].upper(), str(data["user_id"])
+    with nf_lock:
+        room = nf_rooms.get(code)
+        if not room:
+            return jsonify({"error": "room_not_found"}), 404
+        if room["host"] != uid:
+            return jsonify({"error": "not_host"}), 403
+        if room["status"] != "waiting":
+            return jsonify({"error": "invalid_state"}), 400
+        if len(room["players"]) < 2:
+            return jsonify({"error": "need_more_players"}), 400
+        nf_start_round(room)
+    return jsonify({"state": nf_public_state(room, uid)})
+
+
+@app.route("/api/nf/submit", methods=["POST"])
+def nf_submit():
+    data = request.json
+    code, uid = data["code"].upper(), str(data["user_id"])
+    answers = data.get("answers", {})
+    with nf_lock:
+        room = nf_rooms.get(code)
+        if not room or room["status"] != "playing":
+            return jsonify({"error": "invalid_state"}), 400
+        if uid not in room["answers"]:
+            return jsonify({"error": "not_in_room"}), 400
+        room["answers"][uid] = {cat: str(answers.get(cat, ""))[:40] for cat in NF_CATEGORIES}
+        nf_resolve_room(room)
+    return jsonify({"state": nf_public_state(room, uid)})
+
+
+@app.route("/api/nf/finish", methods=["POST"])
+def nf_finish():
+    data = request.json
+    code, uid = data["code"].upper(), str(data["user_id"])
+    answers = data.get("answers", {})
+    with nf_lock:
+        room = nf_rooms.get(code)
+        if not room or room["status"] != "playing":
+            return jsonify({"error": "invalid_state"}), 400
+        if uid not in room["answers"]:
+            return jsonify({"error": "not_in_room"}), 400
+        room["answers"][uid] = {cat: str(answers.get(cat, ""))[:40] for cat in NF_CATEGORIES}
+        if not room.get("finished_by"):
+            room["finished_by"] = uid
+            room["grace_until"] = time.time() + NF_GRACE_TIME
+        nf_resolve_room(room)
+    return jsonify({"state": nf_public_state(room, uid)})
+
+
+@app.route("/api/nf/chat", methods=["POST"])
+def nf_chat():
+    data = request.json
+    code, uid, text = data["code"].upper(), str(data["user_id"]), data.get("text", "")[:300]
+    with nf_lock:
+        room = nf_rooms.get(code)
+        if not room:
+            return jsonify({"error": "room_not_found"}), 404
+        player = next((p for p in room["players"] if p["id"] == uid), None)
+        name = player["name"] if player else "?"
+        room.setdefault("chat", []).append({"name": name, "text": text})
+    return jsonify({"ok": True})
+
+
 # ---------- جستجوی بازیکن (matchmaking) ----------
 MM_STALE = 8     # اگه بازیکن این‌قدر ثانیه پیام نده از صف حذف میشه
 MM_KEEP = 60     # چند ثانیه نتیجه‌ی مچ برای بازیکن‌های دیگه نگه داشته میشه
