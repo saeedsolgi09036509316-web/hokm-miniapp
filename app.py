@@ -2,7 +2,7 @@ import os
 import random
 import string
 import threading
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -15,24 +15,19 @@ RANK_VALUE = {r: i for i, r in enumerate(RANKS, start=2)}
 rooms = {}
 lock = threading.Lock()
 
-
 def new_deck():
     deck = [f"{r}{s}" for s in SUITS for r in RANKS]
     random.shuffle(deck)
     return deck
 
-
 def card_suit(c):
     return c[-1]
-
 
 def card_rank(c):
     return c[:-1]
 
-
 def sort_hand(hand):
     return sorted(hand, key=lambda c: (SUITS.index(card_suit(c)), RANK_VALUE[card_rank(c)]))
-
 
 def gen_code():
     while True:
@@ -40,20 +35,16 @@ def gen_code():
         if code not in rooms:
             return code
 
-
 def get_player(room, uid):
     return next(p for p in room["players"] if p["id"] == uid)
-
 
 def team_of(room, uid):
     idx = next(i for i, p in enumerate(room["players"]) if p["id"] == uid)
     return idx % 2
 
-
 def next_player(room, uid):
     idx = next(i for i, p in enumerate(room["players"]) if p["id"] == uid)
     return room["players"][(idx + 1) % 4]["id"]
-
 
 def pick_hakem(room):
     deck = new_deck()
@@ -64,7 +55,6 @@ def pick_hakem(room):
         if card == "A♠":
             return players[i % 4]["id"]
         i += 1
-
 
 def start_round(room):
     room["deck"] = new_deck()
@@ -79,7 +69,6 @@ def start_round(room):
     hakem = room["hakem"]
     for _ in range(5):
         room["hands"][hakem].append(room["deck"].pop())
-
 
 def public_state(room, uid):
     players_info = [{"id": p["id"], "name": p["name"], "seat": i} for i, p in enumerate(room["players"])]
@@ -100,7 +89,6 @@ def public_state(room, uid):
         "chat": room.get("chat", [])[-30:],
     }
 
-
 @app.route("/api/create", methods=["POST"])
 def create():
     data = request.json
@@ -117,7 +105,6 @@ def create():
             "chat": [], "last_trick": None, "winner_team": None,
         }
     return jsonify({"code": code, "state": public_state(rooms[code], uid)})
-
 
 @app.route("/api/join", methods=["POST"])
 def join():
@@ -136,7 +123,6 @@ def join():
         room["players"].append({"id": uid, "name": name})
     return jsonify({"state": public_state(room, uid)})
 
-
 @app.route("/api/state")
 def state():
     code, uid = request.args.get("code", "").upper(), str(request.args.get("user_id"))
@@ -144,7 +130,6 @@ def state():
     if not room:
         return jsonify({"error": "room_not_found"}), 404
     return jsonify({"state": public_state(room, uid)})
-
 
 @app.route("/api/start", methods=["POST"])
 def start_game():
@@ -161,7 +146,6 @@ def start_game():
         room["hakem"] = pick_hakem(room)
         start_round(room)
     return jsonify({"state": public_state(room, uid)})
-
 
 @app.route("/api/choose_trump", methods=["POST"])
 def choose_trump():
@@ -183,11 +167,9 @@ def choose_trump():
         room["trick_leader"] = room["hakem"]
     return jsonify({"state": public_state(room, uid)})
 
-
 def trick_winner(room):
     trump = room["trump"]
     lead_suit = room["lead_suit"]
-
     def strength(c):
         s = card_suit(c)
         r = RANK_VALUE[card_rank(c)]
@@ -196,9 +178,7 @@ def trick_winner(room):
         if s == lead_suit:
             return (1, r)
         return (0, r)
-
     return max(room["trick"].items(), key=lambda kv: strength(kv[1]))[0]
-
 
 @app.route("/api/play", methods=["POST"])
 def play():
@@ -210,22 +190,18 @@ def play():
             return jsonify({"error": "invalid_state"}), 400
         if room["turn"] != uid:
             return jsonify({"error": "not_your_turn"}), 400
-
         hand = room["hands"][uid]
         if card not in hand:
             return jsonify({"error": "card_not_in_hand"}), 400
-
         lead_suit = room["lead_suit"]
         if lead_suit and card_suit(card) != lead_suit:
             if any(card_suit(c) == lead_suit for c in hand):
                 return jsonify({"error": "must_follow_suit", "suit": lead_suit}), 400
-
         hand.remove(card)
         room["trick"][uid] = card
         if room["lead_suit"] is None:
             room["lead_suit"] = card_suit(card)
             room["trick_leader"] = uid
-
         if len(room["trick"]) < 4:
             room["turn"] = next_player(room, uid)
         else:
@@ -237,7 +213,6 @@ def play():
             room["lead_suit"] = None
             room["turn"] = winner
             room["trick_leader"] = winner
-
             if all(len(h) == 0 for h in room["hands"].values()):
                 win_team = 0 if room["tricks_won"][0] >= 7 else 1
                 room["round_scores"][win_team] += 1
@@ -247,9 +222,7 @@ def play():
                 else:
                     room["hakem"] = next_player(room, room["hakem"])
                     start_round(room)
-
     return jsonify({"state": public_state(room, uid)})
-
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
@@ -263,11 +236,13 @@ def chat():
         room.setdefault("chat", []).append({"name": name, "text": text})
     return jsonify({"ok": True})
 
-
 @app.route("/")
 def health():
     return open("index.html", encoding="utf-8").read()
 
+@app.route("/<path:filename>")
+def static_files(filename):
+    return send_from_directory(".", filename)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
