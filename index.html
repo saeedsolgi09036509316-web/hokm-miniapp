@@ -116,6 +116,15 @@ button:disabled{opacity:.35;box-shadow:none;}
 .chatbox{max-height:110px;overflow-y:auto;font-size:13px;margin-bottom:8px;color:var(--text-dim);}
 .chatbox b{color:var(--text);}
 
+.round-end-title{text-align:center;font-size:20px;font-weight:900;margin:2px 0 14px;color:var(--gold);}
+.round-end-cols{display:flex;gap:10px;}
+.round-end-col{flex:1;border-radius:16px;padding:12px 8px;text-align:center;
+  background:var(--glass);border:1px solid var(--glass-brd);}
+.round-end-col.win{box-shadow:inset 0 0 0 1px rgba(79,217,197,.5);}
+.round-end-col.lose{box-shadow:inset 0 0 0 1px rgba(255,157,122,.4);}
+.round-end-col h4{margin:0 0 8px;font-size:13px;color:var(--text-dim);}
+.round-end-col div{font-size:15px;font-weight:700;margin:3px 0;}
+
 @keyframes drop{from{transform:translate(var(--dx),var(--dy)) scale(1.2);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes pulse{50%{box-shadow:0 0 0 7px rgba(242,197,124,.35);}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
@@ -177,6 +186,19 @@ button:disabled{opacity:.35;box-shadow:none;}
     </div>
     <div class="hand" id="handArea"></div>
   </div>
+  <div id="screen-round-end" class="panel" style="display:none">
+    <p class="round-end-title" id="roundEndTitle"></p>
+    <div class="round-end-cols">
+      <div class="round-end-col win">
+        <h4>🏆 برنده‌های این دست</h4>
+        <div id="roundEndWinners"></div>
+      </div>
+      <div class="round-end-col lose">
+        <h4>بازنده‌های این دست</h4>
+        <div id="roundEndLosers"></div>
+      </div>
+    </div>
+  </div>
   <div id="screen-finished" class="panel" style="display:none">
     <p id="finishedMsg" style="text-align:center;font-size:20px;font-weight:900"></p>
   </div>
@@ -194,6 +216,7 @@ if (tg) tg.expand();
 let userId, userName, roomCode, pollTimer;
 let trickKey = "", handKey = "", lastTrickN = 0, lastTurnMe = false, muted = false, actx = null;
 let selectedPlayers = 4, selectedScore = 7;
+let roundEndKey = "";
 function tgUser() {
   if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return tg.initDataUnsafe.user;
   return null;
@@ -219,7 +242,7 @@ function toggleMute(){
   if (music) music.muted = muted;
 }
 function show(id) {
-  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-finished"]
+  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished"]
     .forEach(s => document.getElementById(s).style.display = (s===id ? "block":"none"));
 }
 function selectPlayers(n){
@@ -307,6 +330,9 @@ function render(state) {
   } else if (state.status === "playing") {
     show("screen-game");
     renderGame(state);
+  } else if (state.status === "round_end") {
+    show("screen-round-end");
+    renderRoundEnd(state);
   } else if (state.status === "finished") {
     show("screen-finished");
     const myTeam = Math.max(0, state.players.findIndex(p=>p.id===userId)) % 2;
@@ -317,6 +343,21 @@ function render(state) {
     if (trickKey !== "end") { trickKey = "end"; beep(w===myTeam?880:220,.5,"triangle"); }
   }
   renderChat(state.chat);
+}
+function renderRoundEnd(state) {
+  const rr = state.round_result;
+  if (!rr) return;
+  const key = rr.win_team + "|" + rr.winners.join(",") + "|" + rr.losers.join(",");
+  if (key === roundEndKey) return;
+  roundEndKey = key;
+  const myTeam = Math.max(0, state.players.findIndex(p=>p.id===userId)) % 2;
+  document.getElementById("roundEndTitle").textContent =
+    rr.win_team === myTeam ? "🎉 این دست رو بردید!" : "این دست رو باختید";
+  document.getElementById("roundEndWinners").innerHTML =
+    rr.winners.map(n => `<div>${esc(n)}</div>`).join("");
+  document.getElementById("roundEndLosers").innerHTML =
+    rr.losers.map(n => `<div>${esc(n)}</div>`).join("");
+  beep(rr.win_team===myTeam?740:260,.35,"triangle");
 }
 function parseCard(card) {
   const suit = (card.match(/[♠♥♦♣]/)||["?"])[0];
