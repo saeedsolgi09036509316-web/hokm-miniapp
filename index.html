@@ -30,6 +30,11 @@ h2{text-align:center;margin:4px 0 14px;font-weight:900;letter-spacing:.2px;
   background:linear-gradient(90deg,var(--violet),var(--mint));
   -webkit-background-clip:text;background-clip:text;color:transparent;}
 .top{display:flex;align-items:center;justify-content:space-between;}
+.online-badge{display:none;align-items:center;gap:6px;width:fit-content;margin:0 auto 10px;padding:6px 12px;
+  border-radius:20px;background:var(--glass);border:1px solid var(--glass-brd);font-size:12px;font-weight:700;}
+.online-badge .dot{width:8px;height:8px;border-radius:50%;background:#3ddc84;box-shadow:0 0 6px #3ddc84;
+  animation:onlinePulse 1.6s ease-in-out infinite;}
+@keyframes onlinePulse{0%,100%{opacity:1}50%{opacity:.35}}
 #muteBtn{width:42px;height:42px;padding:0;background:var(--glass);border:1px solid var(--glass-brd);
   backdrop-filter:blur(14px);color:#fff;font-size:18px;border-radius:14px;}
 
@@ -155,7 +160,7 @@ button:disabled{opacity:.35;box-shadow:none;}
 .dots-board .hline,.dots-board .vline{position:absolute;border-radius:3px;background:rgba(255,255,255,.14);z-index:1;}
 .dots-board .hline:not(.filled):active,.dots-board .vline:not(.filled):active{background:rgba(255,255,255,.4);}
 .dots-board .dbox{position:absolute;display:flex;align-items:center;justify-content:center;
-  font-size:10px;font-weight:900;color:#0c0e1f;border-radius:4px;}
+  font-size:15px;font-weight:900;color:#0c0e1f;border-radius:4px;}
 .dots-players li{margin:6px 0;}
 
 .seat{position:relative;}
@@ -278,6 +283,7 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
 <div id="dealLayer"></div>
 <div id="app">
   <div class="top"><span class="coin-chip" id="coinChip">🪙 <b id="coinCount">0</b><small>SHOLEX</small></span><h2>🃏 حکم آنلاین</h2><button id="muteBtn" onclick="toggleMute()">🔊</button></div>
+  <div class="online-badge" id="onlineBadge"><span class="dot"></span><span><b id="onlineCount">0</b> نفر آنلاین</span></div>
   <div id="screen-name" class="panel">
     <p>اسم شما در بازی:</p>
     <input id="nameInput" placeholder="اسمت رو بنویس">
@@ -621,6 +627,7 @@ function localApi(path, body) {
   if (path === "/api/choose_trump") { if (L.hakem !== userId || L.status !== "choosing_hokm") throw {error:"not_hakem"}; setTrump(body.suit); return {ok:1}; }
   if (path === "/api/play") { playLocal(userId, body.card); return {ok:1}; }
   if (path === "/api/chat") { L.chat.push({name:userName, text:body.text}); return {ok:1}; }
+  if (path === "/api/heartbeat") return {ok:1, count:1};
   return {};
 }
 function setTrump(suit) { L.trump = suit; L.status = "playing"; L.turn = L.hakem; refreshState(); botAct(); }
@@ -872,8 +879,12 @@ function renderDotsScoreboard(state, elId) {
 }
 function renderDotsBoard(state) {
   const board = document.getElementById("dotsBoard");
+  const wrap = board.parentElement;
   const R = state.rows, C = state.cols;
-  const cell = C > 12 ? 26 : 32, dot = 10, thick = 6;
+  const wrapWidth = (wrap && wrap.clientWidth) || 340;
+  let cell = Math.floor((wrapWidth - 20) / (C - 1));
+  cell = Math.max(34, Math.min(cell, 64));
+  const dot = Math.round(cell * 0.42), thick = Math.round(cell * 0.2);
   board.style.width = ((C - 1) * cell + dot) + "px";
   board.style.height = ((R - 1) * cell + dot) + "px";
   let html = "";
@@ -933,6 +944,7 @@ function startWithName(name) {
   if (!tu) { try { localStorage.setItem("hokm_uid", userId); } catch(e){} }
   userName = name;
   loadShop();
+  startOnlinePresence();
   try { localStorage.setItem("hokm_name", userName); } catch(e){}
   const music = document.getElementById("bgMusic");
   if (music) { music.volume = 0.35; music.play().catch(()=>{}); }
@@ -950,6 +962,23 @@ function tryAutoStart() {
   const tu = tgUser();
   const inp = document.getElementById("nameInput");
   if (inp) inp.value = saved || (tu && tu.first_name) || "";
+}
+/* ---- آمار کاربران آنلاین ---- */
+let onlinePollTimer;
+function startOnlinePresence() {
+  sendHeartbeat();
+  if (onlinePollTimer) clearInterval(onlinePollTimer);
+  onlinePollTimer = setInterval(sendHeartbeat, 8000);
+}
+async function sendHeartbeat() {
+  try {
+    const data = await api("/api/heartbeat", "POST", {user_id: userId});
+    const badge = document.getElementById("onlineBadge");
+    if (badge) {
+      badge.style.display = "flex";
+      document.getElementById("onlineCount").textContent = data.count.toLocaleString("fa-IR");
+    }
+  } catch (e) { /* بی‌خیال یه خطای موقت */ }
 }
 async function api(path, method="GET", body=null) {
   if (localMode) return localApi(path, body);
