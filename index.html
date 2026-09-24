@@ -134,6 +134,30 @@ button:disabled{opacity:.35;box-shadow:none;}
 .chat-popup .chat-row input{margin-bottom:0;flex:1;}
 .chat-popup .chat-row button{width:auto;padding:12px 16px;}
 
+.dots-fab{
+  position:fixed;left:14px;bottom:78px;width:auto;z-index:60;
+  display:flex;align-items:center;gap:6px;padding:10px 14px;
+  font-size:13px;font-weight:800;border-radius:22px;
+  box-shadow:0 6px 18px rgba(242,197,124,.4);
+  background:linear-gradient(135deg,var(--gold),var(--mint));
+}
+.num-grid{display:flex;flex-wrap:wrap;gap:8px;}
+.num-grid .opt-btn{flex:0 0 auto;width:42px;padding:10px 0;}
+
+.dots-scoreboard{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.dots-chip{flex:1 1 auto;min-width:64px;border-radius:14px;padding:6px 8px;text-align:center;font-size:12px;
+  background:var(--glass);border:1px solid var(--glass-brd);}
+.dots-chip b{display:block;font-size:16px;}
+.dots-chip.turn{box-shadow:0 0 0 2px var(--gold);}
+.dots-board-wrap{overflow:auto;display:flex;justify-content:center;padding:6px 0 14px;}
+.dots-board{position:relative;flex:none;margin:0 auto;}
+.dots-board .dot{position:absolute;border-radius:50%;background:var(--ivory);z-index:2;}
+.dots-board .hline,.dots-board .vline{position:absolute;border-radius:3px;background:rgba(255,255,255,.14);z-index:1;}
+.dots-board .hline:not(.filled):active,.dots-board .vline:not(.filled):active{background:rgba(255,255,255,.4);}
+.dots-board .dbox{position:absolute;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:900;color:#0c0e1f;border-radius:4px;}
+.dots-players li{margin:6px 0;}
+
 .seat{position:relative;}
 .bubble{
   position:absolute;max-width:110px;background:var(--ivory);color:var(--ink);
@@ -341,6 +365,39 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
     <p id="searchInfo">در حال جستجو...</p>
     <button onclick="cancelSearch()" style="margin-top:10px">❌ لغو جستجو</button>
   </div>
+  <div id="screen-dots-setup" class="panel" style="display:none">
+    <p style="text-align:center;font-weight:900;font-size:18px;margin:0 0 12px">🔵 بازی نقطه‌چین</p>
+    <p class="opt-label">تعداد بازیکن‌ها:</p>
+    <div class="opt-row num-grid" id="dotsPlayersRow"></div>
+    <p class="opt-label" style="margin-top:14px">تعداد نقطه‌ها:</p>
+    <div class="opt-row">
+      <button type="button" class="opt-btn" data-dots-count="50" onclick="selectDotsCount(50)">۵۰</button>
+      <button type="button" class="opt-btn active" data-dots-count="100" onclick="selectDotsCount(100)">۱۰۰</button>
+      <button type="button" class="opt-btn" data-dots-count="150" onclick="selectDotsCount(150)">۱۵۰</button>
+    </div>
+    <button onclick="createDotsRoom()" style="margin-top:16px">➕ ساخت اتاق</button>
+    <input id="dotsJoinCodeInput" placeholder="کد اتاق (برای پیوستن)" style="margin-top:10px">
+    <button onclick="joinDotsRoom()">🔗 پیوستن به اتاق</button>
+    <button onclick="closeDotsSetup()" style="margin-top:10px;background:var(--glass);color:var(--text);box-shadow:none;border:1px solid var(--glass-brd)">بازگشت</button>
+  </div>
+  <div id="screen-dots-lobby" class="panel" style="display:none">
+    <p style="text-align:center;font-weight:900;font-size:18px;margin:0 0 10px">🔵 اتاق نقطه‌چین</p>
+    <p>کد اتاق: <b id="dotsRoomCodeText" style="font-size:22px;color:var(--gold)"></b></p>
+    <p id="dotsLobbyInfo"></p>
+    <ul id="dotsPlayersList" class="players dots-players"></ul>
+    <button id="dotsStartBtn" onclick="startDotsGame()" style="display:none">▶️ شروع بازی</button>
+  </div>
+  <div id="screen-dots-game" style="display:none" class="panel">
+    <div class="dots-scoreboard" id="dotsScoreboard"></div>
+    <div class="status" id="dotsTurnStatus"></div>
+    <div class="dots-board-wrap"><div class="dots-board" id="dotsBoard"></div></div>
+  </div>
+  <div id="screen-dots-finished" class="panel" style="display:none">
+    <p style="text-align:center;font-size:20px;font-weight:900;margin:0 0 10px" id="dotsFinishedMsg"></p>
+    <div class="dots-scoreboard" id="dotsFinalScoreboard"></div>
+    <button onclick="backFromDotsGame()" style="margin-top:14px">🏠 بازگشت به منو</button>
+  </div>
+  <button id="dotsFab" class="dots-fab" onclick="openDotsSetup()" style="display:none">🔵 بازی نقطه‌چین</button>
   <button id="shopBtn" class="chat-fab shop-fab" onclick="openShop()" style="display:none">🛒</button>
   <div id="shopModal" class="shop-modal" style="display:none" onclick="if(event.target===this)closeShop()">
     <div class="shop-box">
@@ -360,6 +417,14 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
     <div class="chat-row">
       <input id="chatInput" placeholder="پیام...">
       <button onclick="sendChat()">ارسال</button>
+    </div>
+  </div>
+  <button id="dotsChatToggleBtn" class="chat-fab" onclick="toggleDotsChatPopup()" style="display:none">💬</button>
+  <div id="dotsChatPopup" class="chat-popup" style="display:none">
+    <div class="chatbox" id="dotsChatBox"></div>
+    <div class="chat-row">
+      <input id="dotsChatInput" placeholder="پیام...">
+      <button onclick="sendDotsChat()">ارسال</button>
     </div>
   </div>
 </div>
@@ -653,11 +718,23 @@ function toggleMute(){
   const music = document.getElementById("bgMusic");
   if (music) music.muted = muted;
 }
+const DOTS_SCREENS = ["screen-dots-setup","screen-dots-lobby","screen-dots-game","screen-dots-finished"];
+const DOTS_CHAT_SCREENS = ["screen-dots-lobby","screen-dots-game"];
 function show(id) {
-  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished","screen-search"]
+  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished","screen-search", ...DOTS_SCREENS]
     .forEach(s => document.getElementById(s).style.display = (s===id ? "block":"none"));
   const sb = document.getElementById("shopBtn");
   if (sb) sb.style.display = id === "screen-lobby-choice" ? "block" : "none";
+  const db = document.getElementById("dotsFab");
+  if (db) db.style.display = (id === "screen-name" || DOTS_SCREENS.includes(id)) ? "none" : "flex";
+  if (!DOTS_SCREENS.includes(id) && dotsPollTimer) { clearInterval(dotsPollTimer); dotsPollTimer = null; }
+
+  const inDotsChat = DOTS_CHAT_SCREENS.includes(id);
+  const ctb = document.getElementById("chatToggleBtn"), dctb = document.getElementById("dotsChatToggleBtn");
+  if (ctb) ctb.style.display = (id === "screen-name" || inDotsChat) ? "none" : "flex";
+  if (dctb) dctb.style.display = inDotsChat ? "flex" : "none";
+  if (!inDotsChat) { chatPopupOpen = false; const dp = document.getElementById("dotsChatPopup"); if (dp) dp.style.display = "none"; }
+  if (id !== "screen-name" && !inDotsChat) { /* حکم: پاپ‌آپ چت خودش با toggle مدیریت می‌شه */ }
 }
 function selectPlayers(n){
   selectedPlayers = n;
@@ -666,6 +743,183 @@ function selectPlayers(n){
 function selectScore(n){
   selectedScore = n;
   document.querySelectorAll('.opt-btn[data-score]').forEach(b=>b.classList.toggle('active', Number(b.dataset.score)===n));
+}
+/* ---- بازی نقطه‌چین (تنظیمات اتاق) ---- */
+let selectedDotsPlayers = 2, selectedDotsCount = 100, dotsReturnScreen = "screen-lobby-choice";
+function buildDotsPlayersRow() {
+  const row = document.getElementById("dotsPlayersRow");
+  if (!row || row.children.length) return;
+  const fa = ["۱","۲","۳","۴","۵","۶","۷","۸","۹","۱۰"];
+  row.innerHTML = fa.map((label, i) => {
+    const n = i + 1;
+    return `<button type="button" class="opt-btn${n===selectedDotsPlayers?" active":""}" data-dots-players="${n}" onclick="selectDotsPlayers(${n})">${label}</button>`;
+  }).join("");
+}
+function selectDotsPlayers(n) {
+  selectedDotsPlayers = n;
+  document.querySelectorAll('.opt-btn[data-dots-players]').forEach(b => b.classList.toggle('active', Number(b.dataset.dotsPlayers) === n));
+}
+function selectDotsCount(n) {
+  selectedDotsCount = n;
+  document.querySelectorAll('.opt-btn[data-dots-count]').forEach(b => b.classList.toggle('active', Number(b.dataset.dotsCount) === n));
+}
+function openDotsSetup() {
+  beep(520, .08);
+  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished","screen-search"]
+    .forEach(s => { const el = document.getElementById(s); if (el && el.style.display !== "none") dotsReturnScreen = s; });
+  buildDotsPlayersRow();
+  show("screen-dots-setup");
+}
+function closeDotsSetup() {
+  show(dotsReturnScreen);
+}
+async function createDotsRoom() {
+  beep(520, .08);
+  try {
+    const data = await api("/api/dots/create", "POST", {user_id:userId, name:userName, max_players:selectedDotsPlayers, dots_count:selectedDotsCount});
+    dotsRoomCode = data.code;
+    enterDotsLobby();
+  } catch(e) { alert("خطا در ساخت اتاق"); }
+}
+async function joinDotsRoom() {
+  const code = document.getElementById("dotsJoinCodeInput").value.trim().toUpperCase();
+  if (!code) return;
+  try {
+    await api("/api/dots/join", "POST", {code, user_id:userId, name:userName});
+    dotsRoomCode = code; enterDotsLobby();
+  } catch(e) { alert(e.error === "room_full" ? "اتاق پره" : "اتاق پیدا نشد"); }
+}
+/* ---- بازی نقطه‌چین (اتاق انتظار و بازی) ---- */
+let dotsRoomCode, dotsPollTimer, dotsLastKey = "", dotsLastStatus = "", dotsChatPopupOpen = false, dotsLastChatCount = 0;
+const DOTS_COLORS = ["#4fd9c5","#ff9d7a","#8b93ff","#f2c57c","#e2506b","#7ee787","#ff6bb0","#5bc0ff","#c9a0ff","#ffd23f"];
+function dotsColorFor(state, uid) {
+  const i = state.players.findIndex(p => p.id === uid);
+  return DOTS_COLORS[i < 0 ? 0 : i % DOTS_COLORS.length];
+}
+function dotsNameFor(state, uid) {
+  const p = state.players.find(p => p.id === uid);
+  return p ? p.name : "?";
+}
+function enterDotsLobby() {
+  document.getElementById("dotsRoomCodeText").textContent = dotsRoomCode;
+  dotsLastChatCount = 0;
+  show("screen-dots-lobby");
+  startDotsPolling();
+}
+function startDotsPolling() {
+  if (dotsPollTimer) clearInterval(dotsPollTimer);
+  refreshDotsState();
+  dotsPollTimer = setInterval(refreshDotsState, 1200);
+}
+async function refreshDotsState() {
+  try {
+    const res = await api(`/api/dots/state?code=${dotsRoomCode}&user_id=${userId}`);
+    renderDotsState(res.state);
+  } catch(e) { /* بی‌خیال یه خطای موقت poll */ }
+}
+async function startDotsGame() {
+  try { await api("/api/dots/start", "POST", {code:dotsRoomCode, user_id:userId}); }
+  catch(e) { alert("فقط سازنده‌ی اتاق می‌تونه بازی رو شروع کنه"); }
+}
+async function playDotsMove(type, row, col) {
+  try { await api("/api/dots/move", "POST", {code:dotsRoomCode, user_id:userId, type, row, col}); refreshDotsState(); }
+  catch(e) {
+    beep(150,.2,"sawtooth");
+    if (e.error === "not_your_turn") alert("نوبت شما نیست!");
+  }
+}
+function backFromDotsGame() {
+  if (dotsPollTimer) { clearInterval(dotsPollTimer); dotsPollTimer = null; }
+  dotsRoomCode = null; dotsLastKey = ""; dotsLastStatus = "";
+  show("screen-lobby-choice");
+}
+function renderDotsState(state) {
+  if (DOTS_CHAT_SCREENS.some(s => document.getElementById(s).style.display !== "none")) renderDotsChat(state.chat);
+  if (state.status === "waiting") {
+    renderDotsLobby(state);
+  } else if (state.status === "playing") {
+    renderDotsScoreboard(state, "dotsScoreboard");
+    const me = state.turn === userId;
+    document.getElementById("dotsTurnStatus").textContent = me ? "نوبت شماست!" : `نوبت ${esc(dotsNameFor(state, state.turn))}`;
+    const key = JSON.stringify([state.rows, state.cols, state.h_lines, state.v_lines, state.boxes, state.turn]);
+    if (key !== dotsLastKey) { renderDotsBoard(state); dotsLastKey = key; }
+    if (dotsLastStatus !== "playing") show("screen-dots-game");
+  } else if (state.status === "finished") {
+    if (dotsLastStatus !== "finished") {
+      const iWon = (state.winners || []).includes(userId);
+      const names = (state.winners || []).map(id => dotsNameFor(state, id)).join("، ");
+      document.getElementById("dotsFinishedMsg").textContent =
+        (state.winners || []).length > 1 ? `🤝 مساوی بین ${names}` : (iWon ? "🏆 شما بردید!" : `🏆 برنده: ${names}`);
+      renderDotsScoreboard(state, "dotsFinalScoreboard");
+      show("screen-dots-finished");
+    }
+  }
+  dotsLastStatus = state.status;
+}
+function renderDotsLobby(state) {
+  document.getElementById("dotsLobbyInfo").textContent = `${state.players.length} از ${state.max_players} بازیکن — منتظر شروع بازی`;
+  document.getElementById("dotsPlayersList").innerHTML =
+    state.players.map(p => `<li>👤 ${esc(p.name)}${p.id===state.host?" (سازنده)":""}</li>`).join("");
+  const startBtn = document.getElementById("dotsStartBtn");
+  startBtn.style.display = state.host === userId ? "block" : "none";
+}
+function renderDotsScoreboard(state, elId) {
+  document.getElementById(elId).innerHTML = state.players.map(p => {
+    const score = (state.scores && state.scores[p.id]) || 0;
+    const isTurn = state.status === "playing" && state.turn === p.id;
+    return `<div class="dots-chip${isTurn?" turn":""}" style="box-shadow:inset 0 0 0 1px ${dotsColorFor(state,p.id)}">${esc(p.name)}<b>${score}</b></div>`;
+  }).join("");
+}
+function renderDotsBoard(state) {
+  const board = document.getElementById("dotsBoard");
+  const R = state.rows, C = state.cols;
+  const cell = C > 12 ? 26 : 32, dot = 10, thick = 6;
+  board.style.width = ((C - 1) * cell + dot) + "px";
+  board.style.height = ((R - 1) * cell + dot) + "px";
+  let html = "";
+  for (let r = 0; r < R - 1; r++) for (let c = 0; c < C - 1; c++) {
+    const owner = state.boxes[r][c];
+    const bg = owner ? dotsColorFor(state, owner) : "rgba(255,255,255,.04)";
+    const initial = owner ? esc(dotsNameFor(state, owner)).charAt(0) : "";
+    html += `<div class="dbox" style="left:${c*cell+dot/2}px;top:${r*cell+dot/2}px;width:${cell-dot/2}px;height:${cell-dot/2}px;background:${bg}">${initial}</div>`;
+  }
+  for (let r = 0; r < R; r++) for (let c = 0; c < C - 1; c++) {
+    const filled = state.h_lines[r][c];
+    const cls = "hline" + (filled ? " filled" : "");
+    const bg = filled ? dotsColorFor(state, filled) : "";
+    const click = filled ? "" : `onclick="playDotsMove('h',${r},${c})"`;
+    html += `<div class="${cls}" style="left:${c*cell+dot}px;top:${r*cell+dot/2-thick/2}px;width:${cell-dot}px;height:${thick}px${bg?`;background:${bg}`:""}" ${click}></div>`;
+  }
+  for (let r = 0; r < R - 1; r++) for (let c = 0; c < C; c++) {
+    const filled = state.v_lines[r][c];
+    const cls = "vline" + (filled ? " filled" : "");
+    const bg = filled ? dotsColorFor(state, filled) : "";
+    const click = filled ? "" : `onclick="playDotsMove('v',${r},${c})"`;
+    html += `<div class="${cls}" style="left:${c*cell+dot/2-thick/2}px;top:${r*cell+dot}px;width:${thick}px;height:${cell-dot}px${bg?`;background:${bg}`:""}" ${click}></div>`;
+  }
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    html += `<div class="dot" style="left:${c*cell}px;top:${r*cell}px;width:${dot}px;height:${dot}px"></div>`;
+  }
+  board.innerHTML = html;
+}
+function toggleDotsChatPopup() {
+  dotsChatPopupOpen = !dotsChatPopupOpen;
+  document.getElementById("dotsChatPopup").style.display = dotsChatPopupOpen ? "block" : "none";
+}
+async function sendDotsChat() {
+  const input = document.getElementById("dotsChatInput");
+  const text = input.value.trim();
+  if (!text || !dotsRoomCode) return;
+  input.value = "";
+  try { await api("/api/dots/chat", "POST", {code:dotsRoomCode, user_id:userId, text}); } catch(e){}
+}
+function renderDotsChat(chat) {
+  if (!chat) return;
+  if (chat.length === dotsLastChatCount) return;
+  dotsLastChatCount = chat.length;
+  const box = document.getElementById("dotsChatBox");
+  box.innerHTML = chat.map(c => `<div><b>${esc(c.name)}:</b> ${esc(c.text)}</div>`).join("");
+  box.scrollTop = box.scrollHeight;
 }
 function proceedFromName() {
   beep(520,.08);
