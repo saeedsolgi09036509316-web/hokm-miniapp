@@ -168,6 +168,27 @@ button:disabled{opacity:.35;box-shadow:none;}
   background:var(--ivory);color:var(--ink);font-size:11px;font-weight:900;line-height:20px;text-align:center;
   box-shadow:0 3px 8px rgba(0,0,0,.4);}
 #dealLayer .collect-card{position:absolute;left:0;top:0;will-change:transform,opacity;}
+.top h2{flex:1;}
+.coin-chip{display:flex;align-items:center;gap:4px;direction:ltr;padding:8px 10px;border-radius:14px;
+  background:var(--glass);border:1px solid var(--glass-brd);backdrop-filter:blur(14px);
+  font-size:14px;font-weight:900;color:var(--gold);white-space:nowrap;}
+.coin-chip small{font-size:9px;font-weight:700;color:var(--text-dim);letter-spacing:.4px;}
+.coin-line{text-align:center;color:var(--gold);font-weight:900;font-size:16px;margin:12px 0 0;}
+.coin-line:empty{display:none;}
+.shop-fab{left:74px;}
+.shop-modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;align-items:center;justify-content:center;padding:16px;}
+.shop-box{width:min(380px,100%);background:var(--bg2);border:1px solid var(--glass-brd);border-radius:20px;padding:14px;max-height:90vh;overflow:auto;}
+.shop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:18px;}
+.shop-item{display:flex;align-items:center;gap:10px;padding:10px;margin:8px 0;border-radius:14px;background:var(--glass);border:1px solid var(--glass-brd);}
+.shop-item button{width:auto;padding:8px 12px;font-size:14px;}
+.shop-prev{width:64px;height:44px;flex:none;border-radius:50%/42%;border:1px solid var(--glass-brd);}
+.bot-sep{border:none;border-top:1px solid var(--glass-brd);margin:16px 0 10px;}
+body.tbl-persepolis{--bg1:#2a1608;--bg2:#4a2a12;--bg3:#6b3f1a;}
+body.tbl-persepolis .felt{background:radial-gradient(ellipse at center,rgba(242,197,124,.32),rgba(150,90,40,.26) 60%,transparent 76%),repeating-linear-gradient(90deg,rgba(0,0,0,.12) 0 2px,transparent 2px 22px);border-color:rgba(242,197,124,.55);}
+body.tbl-sea{--bg1:#04202f;--bg2:#06405a;--bg3:#0a6a86;}
+body.tbl-sea .felt{background:radial-gradient(ellipse at center,rgba(79,217,255,.32),rgba(0,90,150,.28) 60%,transparent 76%),repeating-radial-gradient(circle at 50% 130%,rgba(255,255,255,.08) 0 6px,transparent 6px 14px);border-color:rgba(120,220,255,.55);}
+body.tbl-space{--bg1:#05030f;--bg2:#120a2e;--bg3:#241457;}
+body.tbl-space .felt{background:radial-gradient(circle at 20% 30%,#fff 0 1px,transparent 2px),radial-gradient(circle at 72% 58%,#fff 0 1px,transparent 2px),radial-gradient(circle at 45% 82%,#cfd4ff 0 1px,transparent 2px),radial-gradient(ellipse at center,rgba(150,90,255,.4),rgba(40,20,110,.3) 62%,transparent 78%);border-color:rgba(170,140,255,.55);}
 .hakem-hand .card{animation:dealIn .45s cubic-bezier(.2,.8,.3,1) backwards;animation-delay:calc(var(--i,0)*90ms);}
 @keyframes dealIn{from{transform:translateY(-140px) rotate(-14deg) scale(.6);opacity:0;}to{transform:none;opacity:1;}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
@@ -177,7 +198,7 @@ button:disabled{opacity:.35;box-shadow:none;}
 <audio id="bgMusic" loop preload="auto" src="Toneloom%20Violin%20UpMusics.mp3"></audio>
 <div id="dealLayer"></div>
 <div id="app">
-  <div class="top"><span style="width:40px"></span><h2>🃏 حکم آنلاین</h2><button id="muteBtn" onclick="toggleMute()">🔊</button></div>
+  <div class="top"><span class="coin-chip" id="coinChip">🪙 <b id="coinCount">0</b><small>SHOLEX</small></span><h2>🃏 حکم آنلاین</h2><button id="muteBtn" onclick="toggleMute()">🔊</button></div>
   <div id="screen-name" class="panel">
     <p>اسم شما در بازی:</p>
     <input id="nameInput" placeholder="اسمت رو بنویس">
@@ -198,6 +219,15 @@ button:disabled{opacity:.35;box-shadow:none;}
     <button onclick="createRoom()" style="margin-top:14px">➕ ساخت اتاق جدید</button>
     <input id="joinCodeInput" placeholder="کد اتاق (برای پیوستن)" style="margin-top:10px">
     <button onclick="joinRoom()">🔗 پیوستن به اتاق</button>
+    <hr class="bot-sep">
+    <p class="opt-label">🤖 بازی با ربات — سطح ربات:</p>
+    <div class="opt-row">
+      <button type="button" class="opt-btn" data-level="easy" onclick="selectLevel('easy')">ایزی</button>
+      <button type="button" class="opt-btn active" data-level="normal" onclick="selectLevel('normal')">نرمال</button>
+      <button type="button" class="opt-btn" data-level="hard" onclick="selectLevel('hard')">هارد</button>
+    </div>
+    <button onclick="startBotGame()" style="margin-top:10px">🤖 شروع بازی با ربات</button>
+    <p style="font-size:12px;color:var(--text-dim);text-align:center;margin:8px 0 0">تعداد بازیکن و مچ همان تنظیمات بالاست. بازی با ربات سکه ندارد.</p>
   </div>
   <div id="screen-lobby" class="panel" style="display:none">
     <p>کد اتاق: <b id="roomCodeText" style="font-size:22px;color:var(--gold)"></b></p>
@@ -243,9 +273,20 @@ button:disabled{opacity:.35;box-shadow:none;}
         <div id="roundEndLosers"></div>
       </div>
     </div>
+    <p class="coin-line" id="roundEndCoin"></p>
   </div>
   <div id="screen-finished" class="panel" style="display:none">
     <p id="finishedMsg" style="text-align:center;font-size:20px;font-weight:900"></p>
+    <p class="coin-line" id="finishedCoin"></p>
+    <button onclick="backToMenu()" style="margin-top:14px">🏠 بازگشت به منو</button>
+  </div>
+  <button id="shopBtn" class="chat-fab shop-fab" onclick="openShop()" style="display:none">🛒</button>
+  <div id="shopModal" class="shop-modal" style="display:none" onclick="if(event.target===this)closeShop()">
+    <div class="shop-box">
+      <div class="shop-head"><b>🛒 شاپ میز</b><span class="coin-chip">🪙 <b id="shopCoins">0</b><small>SHOLEX</small></span></div>
+      <div id="shopList"></div>
+      <button onclick="closeShop()" style="margin-top:6px">بستن</button>
+    </div>
   </div>
   <button id="chatToggleBtn" class="chat-fab" onclick="toggleChatPopup()">💬</button>
   <div id="chatPopup" class="chat-popup" style="display:none">
@@ -273,6 +314,201 @@ let dealing = false, dealPending = false, dealTimers = [], dealAnims = [], dealS
 let chatBubbles = {}; // relative seat index -> {text, until}
 let chatPopupOpen = false;
 tryAutoStart();
+/* ---- سکه SHOLEX و شاپ (ذخیره روی تلگرام + گوشی) ---- */
+const COIN_WIN = 100;
+const TABLES = [
+  {id:"classic", name:"میز کلاسیک", price:0, prev:"radial-gradient(ellipse,#5a63c8,#1f2a52)"},
+  {id:"persepolis", name:"تخت جمشید 🏛", price:4000, prev:"radial-gradient(ellipse,#e9b56a,#5a3312)"},
+  {id:"sea", name:"دریا 🌊", price:2000, prev:"radial-gradient(ellipse,#4fd9ff,#06405a)"},
+  {id:"space", name:"فضا 🚀", price:1000, prev:"radial-gradient(ellipse,#9a5aff,#120a2e)"}
+];
+let sh = {v:0, coins:0, owned:[], sel:"classic"}, shLoaded = false;
+const shKey = () => "sholex_data_" + userId;
+function cloudOK() { try { return !!(tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9")); } catch(e) { return false; } }
+function loadShop(cb) {
+  let loc = null; try { loc = JSON.parse(localStorage.getItem(shKey())); } catch(e){}
+  let called = false;
+  const done = cl => {
+    if (called) return; called = true;
+    const best = (cl && cl.v > ((loc || {}).v || 0)) ? cl : loc;
+    if (best) sh = Object.assign({v:0, coins:0, owned:[], sel:"classic"}, best);
+    shLoaded = true; applyTable(); updateCoinUI(); if (cb) cb();
+  };
+  if (cloudOK()) {
+    try { tg.CloudStorage.getItem("sholex_data", (e, val) => { let c = null; try { c = JSON.parse(val); } catch(x){} done(c); }); } catch(e) { done(null); }
+    setTimeout(() => done(null), 2500);
+  } else done(null);
+}
+function saveShop() {
+  sh.v++;
+  const s = JSON.stringify(sh);
+  try { localStorage.setItem(shKey(), s); } catch(e){}
+  if (cloudOK()) { try { tg.CloudStorage.setItem("sholex_data", s, () => {}); } catch(e){} }
+  updateCoinUI();
+}
+function updateCoinUI() {
+  ["coinCount","shopCoins"].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = sh.coins.toLocaleString("en-US"); });
+}
+function applyTable() {
+  TABLES.forEach(t => document.body.classList.remove("tbl-" + t.id));
+  if (sh.sel !== "classic") document.body.classList.add("tbl-" + sh.sel);
+}
+function addCoins(n) {
+  if (!shLoaded) { loadShop(() => addCoins(n)); return; }
+  sh.coins += n; saveShop();
+  const chip = document.getElementById("coinChip");
+  if (chip && chip.animate) chip.animate([{transform:"scale(1)"},{transform:"scale(1.25)"},{transform:"scale(1)"}], {duration:450});
+}
+function awardCoins(lineId) {
+  const el = document.getElementById(lineId);
+  if (el) el.textContent = "🪙 +" + COIN_WIN + " SHOLEX";
+  addCoins(COIN_WIN);
+  setTimeout(() => { beep(988,.1,"triangle"); setTimeout(() => beep(1319,.25,"triangle"), 110); }, 450);
+}
+function openShop() { renderShop(); document.getElementById("shopModal").style.display = "flex"; }
+function closeShop() { document.getElementById("shopModal").style.display = "none"; }
+function renderShop() {
+  document.getElementById("shopList").innerHTML = TABLES.map(t => {
+    const own = t.price === 0 || sh.owned.includes(t.id);
+    const btn = sh.sel === t.id ? `<button disabled>✔ انتخاب‌شده</button>`
+      : own ? `<button onclick="selectTable('${t.id}')">انتخاب</button>`
+      : `<button onclick="buyTable('${t.id}')" style="${sh.coins < t.price ? "opacity:.55" : ""}">🪙 ${t.price.toLocaleString("en-US")}</button>`;
+    return `<div class="shop-item"><div class="shop-prev" style="background:${t.prev}"></div>
+      <div style="flex:1"><b>${t.name}</b><div style="font-size:12px;color:var(--text-dim)">${own ? "مال شماست" : "قیمت: " + t.price.toLocaleString("en-US") + " سکه"}</div></div>${btn}</div>`;
+  }).join("");
+  updateCoinUI();
+}
+function buyTable(id) {
+  const t = TABLES.find(x => x.id === id);
+  if (!t || sh.owned.includes(id)) return;
+  if (sh.coins < t.price) { beep(150,.2,"sawtooth"); alert("سکه‌ی کافی نداری! 🪙"); return; }
+  sh.coins -= t.price; sh.owned.push(id); sh.sel = id;
+  saveShop(); applyTable(); beep(988,.15,"triangle"); renderShop();
+}
+function selectTable(id) { sh.sel = id; saveShop(); applyTable(); renderShop(); }
+function backToMenu() {
+  if (pollTimer) clearInterval(pollTimer);
+  if (L) L.timers.forEach(clearTimeout);
+  cancelDeal(); localMode = false; L = null; roomCode = null;
+  trickKey = ""; handKey = ""; lastTrickN = 0; lastTurnMe = false; roundEndKey = ""; trumpHandKey = "";
+  trickRenderedPids = new Set(); lastChatCount = 0; lastStatus = ""; lastHandLen = -1; lastState = null; chatBubbles = {};
+  document.getElementById("trick").innerHTML = "";
+  ["roundEndCoin","finishedCoin"].forEach(id => document.getElementById(id).textContent = "");
+  show("screen-lobby-choice");
+}
+/* ---- بازی با ربات (کامل داخل برنامه، بدون سرور و بدون سکه) ---- */
+const SUITS = ["♠","♥","♦","♣"], RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+const cSuit = c => c.slice(-1), cVal = c => RANKS.indexOf(c.slice(0, -1));
+let localMode = false, botLevel = "normal", L = null;
+function selectLevel(l) {
+  botLevel = l;
+  document.querySelectorAll('.opt-btn[data-level]').forEach(b => b.classList.toggle('active', b.dataset.level === l));
+}
+const sortHand = h => h.slice().sort((a, b) => SUITS.indexOf(cSuit(a)) - SUITS.indexOf(cSuit(b)) || cVal(b) - cVal(a));
+const nextP = pid => L.players[(L.players.findIndex(p => p.id === pid) + 1) % L.players.length].id;
+const teamOf = pid => L.players.findIndex(p => p.id === pid) % 2;
+const later = (fn, ms) => L.timers.push(setTimeout(() => { if (L && localMode) fn(); }, ms));
+const scoreCard = (c, lead) => (cSuit(c) === L.trump ? 100 : cSuit(c) === lead ? 0 : -100) + cVal(c);
+function startBotGame() {
+  const n = selectedPlayers, names = ["🤖 سارا", "🤖 رضا", "🤖 امیر"];
+  const players = [{id:userId, name:userName}];
+  for (let i = 0; i < n - 1; i++) players.push({id:"bot" + (i + 1), name:names[i]});
+  localMode = true; roomCode = "BOT";
+  L = {players, target:selectedScore, level:botLevel, scores:[0,0], tricks:[0,0], hands:{}, trick:{}, trump:null, turn:null,
+       hakem:players[Math.floor(Math.random() * n)].id, status:"choosing_hokm", chat:[], rr:null, winner:null, timers:[], first5:[]};
+  dealLocal(); enterLobby(); botAct();
+}
+function dealLocal() {
+  const deck = [];
+  SUITS.forEach(s => RANKS.forEach(r => deck.push(r + s)));
+  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  L.hands = {};
+  L.players.forEach((p, i) => L.hands[p.id] = sortHand(deck.slice(i * 13, i * 13 + 13)));
+  const hi = L.players.findIndex(p => p.id === L.hakem);
+  L.first5 = sortHand(deck.slice(hi * 13, hi * 13 + 5));
+  L.tricks = [0, 0]; L.trick = {}; L.trump = null; L.turn = null; L.status = "choosing_hokm";
+}
+function localState() {
+  const me = userId;
+  const hand = L.status === "choosing_hokm" ? (L.hakem === me ? L.first5 : []) : (L.hands[me] || []);
+  return JSON.parse(JSON.stringify({status:L.status, players:L.players, max_players:L.players.length, target_score:L.target, host:me,
+    hakem:L.hakem, hand, trump:L.trump, trick:L.trick, turn:L.turn, round_scores:L.scores, tricks_won:L.tricks,
+    round_result:L.rr, winner_team:L.winner, chat:L.chat}));
+}
+function localApi(path, body) {
+  if (path.startsWith("/api/state")) return {state:localState()};
+  if (path === "/api/choose_trump") { if (L.hakem !== userId || L.status !== "choosing_hokm") throw {error:"not_hakem"}; setTrump(body.suit); return {ok:1}; }
+  if (path === "/api/play") { playLocal(userId, body.card); return {ok:1}; }
+  if (path === "/api/chat") { L.chat.push({name:userName, text:body.text}); return {ok:1}; }
+  return {};
+}
+function setTrump(suit) { L.trump = suit; L.status = "playing"; L.turn = L.hakem; refreshState(); botAct(); }
+function playLocal(pid, card) {
+  if (L.status !== "playing" || L.turn !== pid) throw {error:"not_your_turn"};
+  const hand = L.hands[pid], keys = Object.keys(L.trick);
+  if (!hand.includes(card)) throw {error:"invalid"};
+  const lead = keys.length ? cSuit(L.trick[keys[0]]) : null;
+  if (lead && cSuit(card) !== lead && hand.some(c => cSuit(c) === lead)) throw {error:"must_follow_suit", suit:lead};
+  L.hands[pid] = hand.filter(c => c !== card);
+  L.trick[pid] = card;
+  if (keys.length + 1 < L.players.length) { L.turn = nextP(pid); refreshState(); botAct(); }
+  else { L.turn = null; refreshState(); later(resolveTrick, 1300); }
+}
+function resolveTrick() {
+  const ents = Object.entries(L.trick), lead = cSuit(ents[0][1]);
+  const w = ents.reduce((b, e) => scoreCard(e[1], lead) > scoreCard(b[1], lead) ? e : b, ents[0])[0];
+  const team = teamOf(w);
+  L.tricks[team]++; L.trick = {};
+  if (L.tricks[team] >= 7) return endRound(team);
+  L.turn = w; refreshState(); botAct();
+}
+function endRound(team) {
+  L.scores[team]++; L.turn = null;
+  L.rr = {win_team:team, winners:L.players.filter((p, i) => i % 2 === team).map(p => p.name),
+          losers:L.players.filter((p, i) => i % 2 !== team).map(p => p.name)};
+  L.status = "round_end"; refreshState();
+  later(() => {
+    if (L.scores[team] >= L.target) { L.status = "finished"; L.winner = team; refreshState(); return; }
+    if (teamOf(L.hakem) !== team) L.hakem = nextP(L.hakem);
+    dealLocal(); refreshState(); botAct();
+  }, 3500);
+}
+function botAct() {
+  if (!L || !localMode) return;
+  if (L.status === "choosing_hokm" && L.hakem !== userId) {
+    later(() => {
+      const h = L.first5, cnt = s => h.filter(c => cSuit(c) === s).length, sv = s => h.filter(c => cSuit(c) === s).reduce((a, c) => a + cVal(c), 0);
+      const suit = L.level === "easy" ? SUITS[Math.floor(Math.random() * 4)] : SUITS.slice().sort((a, b) => cnt(b) - cnt(a) || sv(b) - sv(a))[0];
+      setTrump(suit);
+    }, 1400);
+  } else if (L.status === "playing" && L.turn && L.turn !== userId) {
+    const bot = L.turn;
+    later(() => { if (L.status === "playing" && L.turn === bot) playLocal(bot, botPick(bot)); }, 800 + Math.random() * 500);
+  }
+}
+function botPick(pid) {
+  const hand = L.hands[pid], ents = Object.entries(L.trick), lead = ents.length ? cSuit(ents[0][1]) : null;
+  const legal = lead && hand.some(c => cSuit(c) === lead) ? hand.filter(c => cSuit(c) === lead) : hand;
+  if (L.level === "easy") return legal[Math.floor(Math.random() * legal.length)];
+  const T = L.trump, srt = a => a.slice().sort((x, y) => cVal(x) - cVal(y));
+  const low = a => srt(a)[0], high = a => srt(a).pop();
+  if (!lead) {
+    const nonT = legal.filter(c => cSuit(c) !== T), aces = nonT.filter(c => cVal(c) === 12);
+    if (aces.length) return aces[0];
+    const tr = legal.filter(c => cSuit(c) === T);
+    if (L.level === "hard" && tr.some(c => cVal(c) >= 11) && Math.random() < .6) return high(tr);
+    return nonT.length ? high(nonT) : low(legal);
+  }
+  const cur = ents.reduce((b, e) => scoreCard(e[1], lead) > scoreCard(b[1], lead) ? e : b, ents[0]);
+  if (L.level === "hard" && teamOf(cur[0]) === teamOf(pid) && ents.length < L.players.length) {
+    const nt = legal.filter(c => cSuit(c) !== T);
+    return low(nt.length ? nt : legal);
+  }
+  const beat = legal.filter(c => scoreCard(c, lead) > scoreCard(cur[1], lead));
+  if (beat.length) return low(beat);
+  const nt = legal.filter(c => cSuit(c) !== T);
+  return low(nt.length ? nt : legal);
+}
 function toggleChatPopup(){
   chatPopupOpen = !chatPopupOpen;
   document.getElementById("chatPopup").style.display = chatPopupOpen ? "block" : "none";
@@ -304,6 +540,8 @@ function toggleMute(){
 function show(id) {
   ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished"]
     .forEach(s => document.getElementById(s).style.display = (s===id ? "block":"none"));
+  const sb = document.getElementById("shopBtn");
+  if (sb) sb.style.display = id === "screen-lobby-choice" ? "block" : "none";
 }
 function selectPlayers(n){
   selectedPlayers = n;
@@ -324,6 +562,7 @@ function startWithName(name) {
   userId = tu ? String(tu.id) : (localStorage.getItem("hokm_uid") || String(Date.now()));
   if (!tu) { try { localStorage.setItem("hokm_uid", userId); } catch(e){} }
   userName = name;
+  loadShop();
   try { localStorage.setItem("hokm_name", userName); } catch(e){}
   const music = document.getElementById("bgMusic");
   if (music) { music.volume = 0.35; music.play().catch(()=>{}); }
@@ -343,6 +582,7 @@ function tryAutoStart() {
   if (inp) inp.value = saved || (tu && tu.first_name) || "";
 }
 async function api(path, method="GET", body=null) {
+  if (localMode) return localApi(path, body);
   const opts = {method, headers:{"Content-Type":"application/json"}};
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(BACKEND_URL + path, opts);
@@ -404,6 +644,20 @@ function updateChatBubbles(state) {
 }
 function render(state) {
   updateChatBubbles(state);
+  const prevStatus = lastStatus;
+  if (!localMode) {
+    const myTeamR = Math.max(0, (state.players || []).findIndex(p => p.id === userId)) % 2;
+    if (state.status === "round_end" && prevStatus && prevStatus !== "round_end") {
+      const won = !!(state.round_result && state.round_result.win_team === myTeamR);
+      document.getElementById("roundEndCoin").textContent = "";
+      if (won) awardCoins("roundEndCoin");
+    } else if (state.status === "finished" && prevStatus !== "finished") {
+      // اگه دست آخر رو ندیده باشیم (بدون صفحه‌ی پایان دست)، همین‌جا حساب میشه
+      const fresh = state.winner_team != null && state.winner_team === myTeamR && (prevStatus === "playing" || prevStatus === "choosing_hokm");
+      document.getElementById("finishedCoin").textContent = "";
+      if (fresh) awardCoins("finishedCoin");
+    }
+  }
   if (state.status === "playing") {
     const grew = lastStatus === "playing" && lastHandLen >= 0 && state.hand.length > lastHandLen;
     if (((lastStatus && lastStatus !== "playing") || grew) && !prefersReduced()) dealPending = true;
