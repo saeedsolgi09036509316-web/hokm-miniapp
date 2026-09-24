@@ -43,17 +43,19 @@ def team_of(room, uid):
     return idx % 2
 
 def next_player(room, uid):
+    n = len(room["players"])
     idx = next(i for i, p in enumerate(room["players"]) if p["id"] == uid)
-    return room["players"][(idx + 1) % 4]["id"]
+    return room["players"][(idx + 1) % n]["id"]
 
 def pick_hakem(room):
     deck = new_deck()
     players = room["players"]
+    n = len(players)
     i = 0
     while True:
         card = deck[i % len(deck)]
         if card == "A♠":
-            return players[i % 4]["id"]
+            return players[i % n]["id"]
         i += 1
 
 def start_round(room):
@@ -77,6 +79,8 @@ def public_state(room, uid):
         "host": room["host"],
         "status": room["status"],
         "players": players_info,
+        "max_players": room.get("max_players", 4),
+        "target_score": room.get("target_score", 7),
         "hakem": room.get("hakem"),
         "trump": room.get("trump"),
         "turn": room.get("turn"),
@@ -93,6 +97,12 @@ def public_state(room, uid):
 def create():
     data = request.json
     uid, name = str(data["user_id"]), data.get("name", "بازیکن")
+    max_players = int(data.get("max_players", 4))
+    if max_players not in (2, 4):
+        max_players = 4
+    target_score = int(data.get("target_score", 7))
+    if target_score not in (3, 5, 7):
+        target_score = 7
     with lock:
         code = gen_code()
         rooms[code] = {
@@ -103,6 +113,7 @@ def create():
             "trick": {}, "lead_suit": None, "trick_leader": None,
             "tricks_won": {0: 0, 1: 0}, "round_scores": {0: 0, 1: 0},
             "chat": [], "last_trick": None, "winner_team": None,
+            "max_players": max_players, "target_score": target_score,
         }
     return jsonify({"code": code, "state": public_state(rooms[code], uid)})
 
@@ -118,7 +129,7 @@ def join():
             return jsonify({"state": public_state(room, uid)})
         if room["status"] != "waiting":
             return jsonify({"error": "already_started"}), 400
-        if len(room["players"]) >= 4:
+        if len(room["players"]) >= room.get("max_players", 4):
             return jsonify({"error": "room_full"}), 400
         room["players"].append({"id": uid, "name": name})
     return jsonify({"state": public_state(room, uid)})
@@ -141,8 +152,9 @@ def start_game():
             return jsonify({"error": "room_not_found"}), 404
         if room["host"] != uid:
             return jsonify({"error": "not_host"}), 403
-        if len(room["players"]) != 4:
-            return jsonify({"error": "need_4_players"}), 400
+        need = room.get("max_players", 4)
+        if len(room["players"]) != need:
+            return jsonify({"error": "need_more_players"}), 400
         room["hakem"] = pick_hakem(room)
         start_round(room)
     return jsonify({"state": public_state(room, uid)})
@@ -202,7 +214,7 @@ def play():
         if room["lead_suit"] is None:
             room["lead_suit"] = card_suit(card)
             room["trick_leader"] = uid
-        if len(room["trick"]) < 4:
+        if len(room["trick"]) < len(room["players"]):
             room["turn"] = next_player(room, uid)
         else:
             winner = trick_winner(room)
@@ -216,7 +228,8 @@ def play():
             if all(len(h) == 0 for h in room["hands"].values()):
                 win_team = 0 if room["tricks_won"][0] >= 7 else 1
                 room["round_scores"][win_team] += 1
-                if room["round_scores"][win_team] >= 7:
+                target = room.get("target_score", 7)
+                if room["round_scores"][win_team] >= target:
                     room["status"] = "finished"
                     room["winner_team"] = win_team
                 else:
