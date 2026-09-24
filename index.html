@@ -331,11 +331,12 @@ function startWithName(name) {
   }
 }
 function tryAutoStart() {
+  // همیشه صفحه‌ی اسم نشون داده میشه تا با کلیک کاربر موزیک پخش بشه؛ فقط اسم قبلی توی کادر پر میشه
   let saved = null;
   try { saved = localStorage.getItem("hokm_name"); } catch(e){}
   const tu = tgUser();
-  if (saved) startWithName(saved);
-  else if (tu && tu.first_name) startWithName(tu.first_name);
+  const inp = document.getElementById("nameInput");
+  if (inp) inp.value = saved || (tu && tu.first_name) || "";
 }
 async function api(path, method="GET", body=null) {
   const opts = {method, headers:{"Content-Type":"application/json"}};
