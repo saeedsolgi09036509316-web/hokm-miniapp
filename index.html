@@ -113,6 +113,11 @@ button:disabled{opacity:.35;box-shadow:none;}
   box-shadow:0 6px 16px rgba(0,0,0,.3);}
 .trump-picker button:nth-child(2),.trump-picker button:nth-child(3){color:var(--red);}
 
+.hakem-hand{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:6px 0 18px;direction:ltr;}
+.hakem-hand .card{width:74px;height:106px;box-shadow:0 10px 22px rgba(0,0,0,.45);}
+.hakem-hand .card .r,.hakem-hand .card .r2{font-size:20px;}
+.hakem-hand .card .s{font-size:38px;}
+
 .chatbox{max-height:110px;overflow-y:auto;font-size:13px;margin-bottom:8px;color:var(--text-dim);}
 .chatbox b{color:var(--text);}
 
@@ -163,6 +168,7 @@ button:disabled{opacity:.35;box-shadow:none;}
   </div>
   <div id="screen-trump" class="panel" style="display:none">
     <p id="trumpMsg"></p>
+    <div class="hakem-hand" id="trumpHandArea" style="display:none"></div>
     <div class="trump-picker">
       <button onclick="chooseTrump('♠')">♠</button>
       <button onclick="chooseTrump('♥')">♥</button>
@@ -217,6 +223,8 @@ let userId, userName, roomCode, pollTimer;
 let trickKey = "", handKey = "", lastTrickN = 0, lastTurnMe = false, muted = false, actx = null;
 let selectedPlayers = 4, selectedScore = 7;
 let roundEndKey = "";
+let trumpHandKey = "";
+let trickRenderedPids = new Set();
 function tgUser() {
   if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return tg.initDataUnsafe.user;
   return null;
@@ -305,6 +313,14 @@ async function refreshState() {
     render(data.state);
   } catch(e) {}
 }
+function parseCard(card) {
+  const suit = (card.match(/[♠♥♦♣]/)||["?"])[0];
+  return {suit, rank: card.replace(suit,"").trim(), red: suit==="♥"||suit==="♦"};
+}
+function cardHtml(card, extra="", attrs="") {
+  const c = parseCard(card);
+  return `<div class="card ${c.red?"red":""} ${extra}" ${attrs}><span class="r">${c.rank}</span><span class="s">${c.suit}</span><span class="r2">${c.rank}</span></div>`;
+}
 function render(state) {
   if (state.status === "waiting") {
     show("screen-lobby");
@@ -318,12 +334,21 @@ function render(state) {
   } else if (state.status === "choosing_hokm") {
     show("screen-trump");
     const buttons = document.querySelectorAll(".trump-picker button");
+    const handArea = document.getElementById("trumpHandArea");
     if (state.hakem === userId) {
       buttons.forEach(b=>b.disabled=false);
-      document.getElementById("trumpMsg").textContent =
-        "شما حاکم این دست هستید! کارت‌ها: " + state.hand.join(" ") + " — حکم رو انتخاب کن:";
+      document.getElementById("trumpMsg").textContent = "شما حاکم این دست هستید! این کارت‌هاتونه — حکم رو انتخاب کن:";
+      handArea.style.display = "flex";
+      const hk = state.hand.join("|");
+      if (hk !== trumpHandKey) {
+        trumpHandKey = hk;
+        handArea.innerHTML = state.hand.map(card => cardHtml(card)).join("");
+      }
     } else {
       buttons.forEach(b=>b.disabled=true);
+      handArea.style.display = "none";
+      handArea.innerHTML = "";
+      trumpHandKey = "";
       const hakemName = (state.players.find(p=>p.id===state.hakem)||{}).name || "";
       document.getElementById("trumpMsg").textContent = `منتظر انتخاب حکم توسط ${hakemName}...`;
     }
@@ -359,14 +384,6 @@ function renderRoundEnd(state) {
     rr.losers.map(n => `<div>${esc(n)}</div>`).join("");
   beep(rr.win_team===myTeam?740:260,.35,"triangle");
 }
-function parseCard(card) {
-  const suit = (card.match(/[♠♥♦♣]/)||["?"])[0];
-  return {suit, rank: card.replace(suit,"").trim(), red: suit==="♥"||suit==="♦"};
-}
-function cardHtml(card, extra="", attrs="") {
-  const c = parseCard(card);
-  return `<div class="card ${c.red?"red":""} ${extra}" ${attrs}><span class="r">${c.rank}</span><span class="s">${c.suit}</span><span class="r2">${c.rank}</span></div>`;
-}
 function renderGame(state) {
   const players = state.players;
   const myIdx = Math.max(0, players.findIndex(p=>p.id===userId));
@@ -397,8 +414,19 @@ function renderGame(state) {
     if (entries.length > lastTrickN) beep(300,.09,"square");
     lastTrickN = entries.length;
     trickKey = tk;
-    document.getElementById("trick").innerHTML = entries.map(([pid,card]) =>
-      cardHtml(card, `tc${rel(pid)} drop`)).join("");
+    const trickEl = document.getElementById("trick");
+    // اگه دست جدیدی شروع شده (تعداد کارت‌ها کمتر از قبله یا صفره)، میز رو کامل خالی کن
+    if (entries.length === 0 || entries.length < trickRenderedPids.size) {
+      trickEl.innerHTML = "";
+      trickRenderedPids = new Set();
+    }
+    // فقط کارت‌های جدید رو اضافه کن؛ کارت‌های قبلی رو دست نزن تا انیمیشنشون دوباره اجرا نشه
+    entries.forEach(([pid, card]) => {
+      if (!trickRenderedPids.has(pid)) {
+        trickRenderedPids.add(pid);
+        trickEl.insertAdjacentHTML("beforeend", cardHtml(card, `tc${rel(pid)} drop`));
+      }
+    });
   }
   const hk = state.hand.join("|") + (myTurn?"*":"");
   if (hk !== handKey) {
