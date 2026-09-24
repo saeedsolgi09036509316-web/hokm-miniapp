@@ -2,8 +2,7 @@ import os
 import random
 import string
 import threading
-import time
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -13,29 +12,22 @@ SUITS = ["♠", "♥", "♦", "♣"]
 RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
 RANK_VALUE = {r: i for i, r in enumerate(RANKS, start=2)}
 
-TRICK_PAUSE = 2.0  # حداقل چند ثانیه کارت‌های وسط میز بعد از تکمیل یه دست نمایش داده بشن
-
 rooms = {}
 lock = threading.Lock()
-
 
 def new_deck():
     deck = [f"{r}{s}" for s in SUITS for r in RANKS]
     random.shuffle(deck)
     return deck
 
-
 def card_suit(c):
     return c[-1]
-
 
 def card_rank(c):
     return c[:-1]
 
-
 def sort_hand(hand):
     return sorted(hand, key=lambda c: (SUITS.index(card_suit(c)), RANK_VALUE[card_rank(c)]))
-
 
 def gen_code():
     while True:
@@ -43,31 +35,28 @@ def gen_code():
         if code not in rooms:
             return code
 
-
 def get_player(room, uid):
     return next(p for p in room["players"] if p["id"] == uid)
-
 
 def team_of(room, uid):
     idx = next(i for i, p in enumerate(room["players"]) if p["id"] == uid)
     return idx % 2
 
-
 def next_player(room, uid):
+    n = len(room["players"])
     idx = next(i for i, p in enumerate(room["players"]) if p["id"] == uid)
-    return room["players"][(idx + 1) % 4]["id"]
-
+    return room["players"][(idx + 1) % n]["id"]
 
 def pick_hakem(room):
     deck = new_deck()
     players = room["players"]
+    n = len(players)
     i = 0
     while True:
         card = deck[i % len(deck)]
         if card == "A♠":
-            return players[i % 4]["id"]
+            return players[i % n]["id"]
         i += 1
-
 
 def start_round(room):
     room["deck"] = new_deck()
@@ -79,45 +68,9 @@ def start_round(room):
     room["trump"] = None
     room["status"] = "choosing_hokm"
     room["last_trick"] = None
-    room["trick_pause_until"] = None
-    room["trick_winner"] = None
     hakem = room["hakem"]
     for _ in range(5):
         room["hands"][hakem].append(room["deck"].pop())
-
-
-def resolve_pending_trick(room):
-    """اگه یه دست (trick) تکمیل شده و زمان نمایشش (TRICK_PAUSE) گذشته باشه،
-    الان جمعش می‌کنیم: امتیاز می‌دیم و نوبت رو به برنده می‌سپاریم.
-    تا قبل از اون، کارت‌ها همونجوری روی میز می‌مونن که کلاینت‌ها ببینن‌شون."""
-    if not room.get("trick_pause_until"):
-        return
-    if time.time() < room["trick_pause_until"]:
-        return
-
-    winner = room["trick_winner"]
-    team = team_of(room, winner)
-    room["tricks_won"][team] += 1
-    room["last_trick"] = {"cards": dict(room["trick"]), "winner": winner}
-    room["trick"] = {}
-    room["lead_suit"] = None
-    room["turn"] = winner
-    room["trick_leader"] = winner
-    room["trick_pause_until"] = None
-    room["trick_winner"] = None
-
-    # دست (round) به محض اینکه یک تیم به ۷ ترفند برسه تموم می‌شه، نه لزوماً بعد از ۱۳ ترفند
-    hand_over = room["tricks_won"][team] >= 7 or all(len(h) == 0 for h in room["hands"].values())
-    if hand_over:
-        win_team = 0 if room["tricks_won"][0] >= 7 else 1
-        room["round_scores"][win_team] += 1
-        if room["round_scores"][win_team] >= 7:
-            room["status"] = "finished"
-            room["winner_team"] = win_team
-        else:
-            room["hakem"] = next_player(room, room["hakem"])
-            start_round(room)
-
 
 def public_state(room, uid):
     players_info = [{"id": p["id"], "name": p["name"], "seat": i} for i, p in enumerate(room["players"])]
@@ -126,6 +79,8 @@ def public_state(room, uid):
         "host": room["host"],
         "status": room["status"],
         "players": players_info,
+        "max_players": room.get("max_players", 4),
+        "target_score": room.get("target_score", 7),
         "hakem": room.get("hakem"),
         "trump": room.get("trump"),
         "turn": room.get("turn"),
@@ -138,11 +93,16 @@ def public_state(room, uid):
         "chat": room.get("chat", [])[-30:],
     }
 
-
 @app.route("/api/create", methods=["POST"])
 def create():
     data = request.json
     uid, name = str(data["user_id"]), data.get("name", "بازیکن")
+    max_players = int(data.get("max_players", 4))
+    if max_players not in (2, 4):
+        max_players = 4
+    target_score = int(data.get("target_score", 7))
+    if target_score not in (3, 5, 7):
+        target_score = 7
     with lock:
         code = gen_code()
         rooms[code] = {
@@ -153,10 +113,9 @@ def create():
             "trick": {}, "lead_suit": None, "trick_leader": None,
             "tricks_won": {0: 0, 1: 0}, "round_scores": {0: 0, 1: 0},
             "chat": [], "last_trick": None, "winner_team": None,
-            "trick_pause_until": None, "trick_winner": None,
+            "max_players": max_players, "target_score": target_score,
         }
     return jsonify({"code": code, "state": public_state(rooms[code], uid)})
-
 
 @app.route("/api/join", methods=["POST"])
 def join():
@@ -170,11 +129,10 @@ def join():
             return jsonify({"state": public_state(room, uid)})
         if room["status"] != "waiting":
             return jsonify({"error": "already_started"}), 400
-        if len(room["players"]) >= 4:
+        if len(room["players"]) >= room.get("max_players", 4):
             return jsonify({"error": "room_full"}), 400
         room["players"].append({"id": uid, "name": name})
     return jsonify({"state": public_state(room, uid)})
-
 
 @app.route("/api/state")
 def state():
@@ -182,10 +140,7 @@ def state():
     room = rooms.get(code)
     if not room:
         return jsonify({"error": "room_not_found"}), 404
-    with lock:
-        resolve_pending_trick(room)
     return jsonify({"state": public_state(room, uid)})
-
 
 @app.route("/api/start", methods=["POST"])
 def start_game():
@@ -197,12 +152,12 @@ def start_game():
             return jsonify({"error": "room_not_found"}), 404
         if room["host"] != uid:
             return jsonify({"error": "not_host"}), 403
-        if len(room["players"]) != 4:
-            return jsonify({"error": "need_4_players"}), 400
+        need = room.get("max_players", 4)
+        if len(room["players"]) != need:
+            return jsonify({"error": "need_more_players"}), 400
         room["hakem"] = pick_hakem(room)
         start_round(room)
     return jsonify({"state": public_state(room, uid)})
-
 
 @app.route("/api/choose_trump", methods=["POST"])
 def choose_trump():
@@ -224,11 +179,9 @@ def choose_trump():
         room["trick_leader"] = room["hakem"]
     return jsonify({"state": public_state(room, uid)})
 
-
 def trick_winner(room):
     trump = room["trump"]
     lead_suit = room["lead_suit"]
-
     def strength(c):
         s = card_suit(c)
         r = RANK_VALUE[card_rank(c)]
@@ -237,9 +190,7 @@ def trick_winner(room):
         if s == lead_suit:
             return (1, r)
         return (0, r)
-
     return max(room["trick"].items(), key=lambda kv: strength(kv[1]))[0]
-
 
 @app.route("/api/play", methods=["POST"])
 def play():
@@ -249,12 +200,6 @@ def play():
         room = rooms.get(code)
         if not room or room["status"] != "playing":
             return jsonify({"error": "invalid_state"}), 400
-
-        # اگه دست قبلی هنوز روی میز مونده و زمانش تموم شده، همینجا جمعش کن
-        resolve_pending_trick(room)
-        if room["status"] != "playing":
-            return jsonify({"state": public_state(room, uid)})
-
         if room["turn"] != uid:
             return jsonify({"error": "not_your_turn"}), 400
         hand = room["hands"][uid]
@@ -269,16 +214,28 @@ def play():
         if room["lead_suit"] is None:
             room["lead_suit"] = card_suit(card)
             room["trick_leader"] = uid
-
-        if len(room["trick"]) < 4:
+        if len(room["trick"]) < len(room["players"]):
             room["turn"] = next_player(room, uid)
         else:
-            # دست تکمیل شد؛ فعلاً پاکش نمی‌کنیم تا همه کارت چهارم رو ببینن
-            room["trick_winner"] = trick_winner(room)
-            room["trick_pause_until"] = time.time() + TRICK_PAUSE
-            room["turn"] = None
+            winner = trick_winner(room)
+            team = team_of(room, winner)
+            room["tricks_won"][team] += 1
+            room["last_trick"] = {"cards": dict(room["trick"]), "winner": winner}
+            room["trick"] = {}
+            room["lead_suit"] = None
+            room["turn"] = winner
+            room["trick_leader"] = winner
+            if all(len(h) == 0 for h in room["hands"].values()):
+                win_team = 0 if room["tricks_won"][0] >= 7 else 1
+                room["round_scores"][win_team] += 1
+                target = room.get("target_score", 7)
+                if room["round_scores"][win_team] >= target:
+                    room["status"] = "finished"
+                    room["winner_team"] = win_team
+                else:
+                    room["hakem"] = next_player(room, room["hakem"])
+                    start_round(room)
     return jsonify({"state": public_state(room, uid)})
-
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
@@ -292,11 +249,13 @@ def chat():
         room.setdefault("chat", []).append({"name": name, "text": text})
     return jsonify({"ok": True})
 
-
 @app.route("/")
 def health():
     return open("index.html", encoding="utf-8").read()
 
+@app.route("/<path:filename>")
+def static_files(filename):
+    return send_from_directory(".", filename)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
