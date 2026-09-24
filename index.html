@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حکم آنلاین</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#0b3d2e; --card-bg:#fff; --card-red:#c0392b; --card-black:#111;
+    --accent:#f1c40f; --panel:#0f4a37;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Tahoma,sans-serif;background:var(--bg);color:#fff;min-height:100vh;}
+  #app{max-width:480px;margin:0 auto;padding:10px;}
+  h2{text-align:center;margin:8px 0;}
+  .panel{background:var(--panel);border-radius:12px;padding:12px;margin-bottom:10px;}
+  input,button{font-family:inherit;font-size:16px;border-radius:8px;border:none;padding:10px;}
+  input{width:100%;margin-bottom:8px;}
+  button{background:var(--accent);color:#000;font-weight:bold;width:100%;cursor:pointer;}
+  button:disabled{opacity:.5;}
+  .players li{margin:4px 0;}
+  .table-area{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0;min-height:90px;}
+  .card{background:var(--card-bg);border-radius:8px;padding:8px 4px;min-width:42px;text-align:center;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.4);}
+  .card.red{color:var(--card-red);}
+  .card.black{color:var(--card-black);}
+  .hand{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
+  .hand .card{cursor:pointer;}
+  .hand .card:active{transform:translateY(-6px);}
+  .scoreboard{display:flex;justify-content:space-between;font-size:14px;}
+  .trump-picker{display:flex;gap:8px;justify-content:center;}
+  .trump-picker button{width:auto;flex:1;font-size:22px;}
+  .chatbox{max-height:120px;overflow-y:auto;font-size:13px;margin-bottom:6px;}
+  .status{text-align:center;margin:6px 0;font-size:14px;color:#ffe08a;}
+</style>
+</head>
+<body>
+<div id="app">
+  <h2>🃏 حکم آنلاین</h2>
+
+  <div id="screen-name" class="panel">
+    <p>اسم شما در بازی:</p>
+    <input id="nameInput" placeholder="اسمت رو بنویس">
+    <button onclick="proceedFromName()">ادامه</button>
+  </div>
+
+  <div id="screen-lobby-choice" class="panel" style="display:none">
+    <button onclick="createRoom()">➕ ساخت اتاق جدید</button>
+    <input id="joinCodeInput" placeholder="کد اتاق (برای پیوستن)" style="margin-top:10px">
+    <button onclick="joinRoom()">🔗 پیوستن به اتاق</button>
+  </div>
+
+  <div id="screen-lobby" class="panel" style="display:none">
+    <p>کد اتاق: <b id="roomCodeText"></b></p>
+    <p>این کد رو برای ۳ نفر دیگه بفرست تا وارد شوند</p>
+    <ul id="playersList" class="players"></ul>
+    <button id="startBtn" onclick="startGame()" style="display:none">▶️ شروع بازی</button>
+  </div>
+
+  <div id="screen-trump" class="panel" style="display:none">
+    <p id="trumpMsg"></p>
+    <div class="trump-picker">
+      <button onclick="chooseTrump('♠')">♠</button>
+      <button onclick="chooseTrump('♥')">♥</button>
+      <button onclick="chooseTrump('♦')">♦</button>
+      <button onclick="chooseTrump('♣')">♣</button>
+    </div>
+  </div>
+
+  <div id="screen-game" class="panel" style="display:none">
+    <div class="scoreboard">
+      <span>حکم: <b id="trumpDisplay"></b></span>
+      <span id="scoreDisplay"></span>
+    </div>
+    <div class="status" id="turnStatus"></div>
+    <div class="table-area" id="tableArea"></div>
+    <div class="hand" id="handArea"></div>
+  </div>
+
+  <div id="screen-finished" class="panel" style="display:none">
+    <p id="finishedMsg" style="text-align:center;font-size:18px"></p>
+  </div>
+
+  <div class="panel">
+    <div class="chatbox" id="chatBox"></div>
+    <input id="chatInput" placeholder="پیام...">
+    <button onclick="sendChat()">ارسال</button>
+  </div>
+</div>
+
+<script>
+// بعد از دیپلوی بک‌اند، آدرسش رو اینجا جایگزین کن
+const BACKEND_URL = "https://REPLACE-ME.onrender.com";
+
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) tg.expand();
+
+let userId, userName, roomCode, pollTimer;
+
+function tgUser() {
+  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    return tg.initDataUnsafe.user;
+  }
+  return null;
+}
+
+function show(id) {
+  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-finished"]
+    .forEach(s => document.getElementById(s).style.display = (s===id ? "block":"none"));
+}
+
+function proceedFromName() {
+  const tu = tgUser();
+  userId = tu ? String(tu.id) : String(Date.now());
+  userName = document.getElementById("nameInput").value.trim() || (tu ? tu.first_name : "بازیکن");
+  show("screen-lobby-choice");
+
+  const startParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  if (startParam && startParam.startsWith("hokm_")) {
+    document.getElementById("joinCodeInput").value = startParam.replace("hokm_","");
+    joinRoom();
+  }
+}
+
+async function api(path, method="GET", body=null) {
+  const opts = {method, headers:{"Content-Type":"application/json"}};
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(BACKEND_URL + path, opts);
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data;
+}
+
+async function createRoom() {
+  try {
+    const data = await api("/api/create", "POST", {user_id:userId, name:userName});
+    roomCode = data.code;
+    enterLobby();
+  } catch(e) { alert("خطا در ساخت اتاق"); }
+}
+
+async function joinRoom() {
+  const code = document.getElementById("joinCodeInput").value.trim().toUpperCase();
+  if (!code) return;
+  try {
+    await api("/api/join", "POST", {code, user_id:userId, name:userName});
+    roomCode = code;
+    enterLobby();
+  } catch(e) { alert(e.error === "room_full" ? "اتاق پره" : "اتاق پیدا نشد"); }
+}
+
+function enterLobby() {
+  document.getElementById("roomCodeText").textContent = roomCode;
+  show("screen-lobby");
+  startPolling();
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(refreshState, 1500);
+  refreshState();
+}
+
+async function refreshState() {
+  try {
+    const data = await api(`/api/state?code=${roomCode}&user_id=${userId}`);
+    render(data.state);
+  } catch(e) {}
+}
+
+function render(state) {
+  if (state.status === "waiting") {
+    show("screen-lobby");
+    document.getElementById("playersList").innerHTML =
+      state.players.map(p => `<li>${p.name}</li>`).join("");
+    document.getElementById("startBtn").style.display =
+      (state.host === userId && state.players.length === 4) ? "block" : "none";
+  } else if (state.status === "choosing_hokm") {
+    show("screen-trump");
+    const buttons = document.querySelectorAll(".trump-picker button");
+    if (state.hakem === userId) {
+      buttons.forEach(b=>b.disabled=false);
+      document.getElementById("trumpMsg").textContent =
+        "شما حاکم این دست هستید! کارت‌ها: " + state.hand.join(" ") + " — حکم رو انتخاب کن:";
+    } else {
+      buttons.forEach(b=>b.disabled=true);
+      const hakemName = (state.players.find(p=>p.id===state.hakem)||{}).name || "";
+      document.getElementById("trumpMsg").textContent = `منتظر انتخاب حکم توسط ${hakemName}...`;
+    }
+  } else if (state.status === "playing") {
+    show("screen-game");
+    renderGame(state);
+  } else if (state.status === "finished") {
+    show("screen-finished");
+    const winnerTeam = state.winner_team;
+    const names = state.players.filter((p,i)=> i%2===winnerTeam).map(p=>p.name).join(" و ");
+    document.getElementById("finishedMsg").textContent =
+      winnerTeam != null ? `🎉 تیم ${names} برنده شد!` : "بازی تمام شد";
+  }
+  renderChat(state.chat);
+}
+
+function suitColor(card) {
+  return (card.includes("♥") || card.includes("♦")) ? "red" : "black";
+}
+
+function renderGame(state) {
+  document.getElementById("trumpDisplay").textContent = state.trump;
+  document.getElementById("scoreDisplay").textContent =
+    `دست: ${state.tricks_won[0]}-${state.tricks_won[1]} | امتیاز: ${state.round_scores[0]}-${state.round_scores[1]}`;
+
+  const myTurn = state.turn === userId;
+  const turnName = (state.players.find(p=>p.id===state.turn)||{}).name || "";
+  document.getElementById("turnStatus").textContent = myTurn ? "نوبت شماست!" : `نوبت: ${turnName}`;
+
+  const tableArea = document.getElementById("tableArea");
+  tableArea.innerHTML = Object.entries(state.trick).map(([pid,card]) => {
+    const name = (state.players.find(p=>p.id===pid)||{}).name || "";
+    return `<div><div class="card ${suitColor(card)}">${card}</div><div style="font-size:11px;text-align:center">${name}</div></div>`;
+  }).join("");
+
+  const handArea = document.getElementById("handArea");
+  handArea.innerHTML = state.hand.map(card =>
+    `<div class="card ${suitColor(card)}" onclick="playCard('${card}')">${card}</div>`
+  ).join("");
+}
+
+async function startGame() {
+  try { await api("/api/start", "POST", {code:roomCode, user_id:userId}); }
+  catch(e) { alert("خطا در شروع بازی"); }
+}
+
+async function chooseTrump(suit) {
+  try { await api("/api/choose_trump", "POST", {code:roomCode, user_id:userId, suit}); }
+  catch(e) { alert("فقط حاکم می‌تونه حکم رو انتخاب کنه"); }
+}
+
+async function playCard(card) {
+  try { await api("/api/play", "POST", {code:roomCode, user_id:userId, card}); refreshState(); }
+  catch(e) {
+    if (e.error === "must_follow_suit") alert("باید از خال " + e.suit + " بازی کنی!");
+    else if (e.error === "not_your_turn") alert("نوبت شما نیست!");
+    else alert("حرکت نامعتبر");
+  }
+}
+
+async function sendChat() {
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  try { await api("/api/chat", "POST", {code:roomCode, user_id:userId, text}); } catch(e){}
+}
+
+function renderChat(chat) {
+  if (!chat) return;
+  document.getElementById("chatBox").innerHTML =
+    chat.map(c => `<div><b>${c.name}:</b> ${c.text}</div>`).join("");
+}
+</script>
+</body>
+</html>
