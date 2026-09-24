@@ -164,6 +164,10 @@ button:disabled{opacity:.35;box-shadow:none;}
 #dealLayer{position:fixed;inset:0;pointer-events:none;z-index:55;overflow:hidden;}
 #dealLayer .deal-card,#dealLayer .deal-deck i{position:absolute;left:0;top:0;width:52px;height:76px;will-change:transform,opacity;}
 #dealLayer .deal-deck{position:absolute;width:52px;height:76px;transform:scale(.72);}
+.cbadge{position:absolute;bottom:-7px;right:-9px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;
+  background:var(--ivory);color:var(--ink);font-size:11px;font-weight:900;line-height:20px;text-align:center;
+  box-shadow:0 3px 8px rgba(0,0,0,.4);}
+#dealLayer .collect-card{position:absolute;left:0;top:0;will-change:transform,opacity;}
 .hakem-hand .card{animation:dealIn .45s cubic-bezier(.2,.8,.3,1) backwards;animation-delay:calc(var(--i,0)*90ms);}
 @keyframes dealIn{from{transform:translateY(-140px) rotate(-14deg) scale(.6);opacity:0;}to{transform:none;opacity:1;}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
@@ -265,7 +269,7 @@ let trumpHandKey = "";
 let trickRenderedPids = new Set();
 let lastChatCount = 0;
 let lastStatus = "", lastHandLen = -1, lastState = null;
-let dealing = false, dealPending = false, dealTimers = [], dealAnims = [];
+let dealing = false, dealPending = false, dealTimers = [], dealAnims = [], dealShown = {};
 let chatBubbles = {}; // relative seat index -> {text, until}
 let chatPopupOpen = false;
 tryAutoStart();
@@ -494,9 +498,12 @@ function renderGame(state) {
     const s = rel(p.id);
     const team = i % 2 === myTeam ? 0 : 1;
     const b = chatBubbles[s];
+    const myCnt = state.hand.length + ((userId in state.trick) ? 1 : 0);
+    const leftCnt = Math.max(0, myCnt - ((p.id in state.trick) ? 1 : 0));
+    const badge = s === 0 ? "" : `<span class="cbadge">${dealing ? (dealShown[s] || 0) : leftCnt}</span>`;
     const bubbleHtml = (b && b.until > Date.now()) ? `<div class="bubble">${esc(b.text)}</div>` : "";
     document.getElementById("seat"+s).innerHTML =
-      `<div class="av t${team} ${state.turn===p.id?"turn":""}">${state.hakem===p.id?'<span class="crown">👑</span>':""}${esc(p.name.charAt(0))}</div><div class="nm">${s===0?"شما":esc(p.name)}</div>${bubbleHtml}`;
+      `<div class="av t${team} ${state.turn===p.id?"turn":""}">${state.hakem===p.id?'<span class="crown">👑</span>':""}${esc(p.name.charAt(0))}${badge}</div><div class="nm">${s===0?"شما":esc(p.name)}</div>${bubbleHtml}`;
   });
   const entries = Object.entries(state.trick);
   const tk = entries.map(([pid,c])=>pid+c).join("|");
@@ -507,6 +514,7 @@ function renderGame(state) {
     const trickEl = document.getElementById("trick");
     // اگه دست جدیدی شروع شده (تعداد کارت‌ها کمتر از قبله یا صفره)، میز رو کامل خالی کن
     if (entries.length === 0 || entries.length < trickRenderedPids.size) {
+      if (!dealPending && !dealing && trickRenderedPids.size) collectTrick(trickEl, rel(entries.length ? entries[0][0] : state.turn));
       trickEl.innerHTML = "";
       trickRenderedPids = new Set();
     }
@@ -544,6 +552,33 @@ function finishDeal() {
   cancelDeal();
   if (lastState && lastState.status === "playing") { handKey = ""; renderGame(lastState); }
 }
+function collectTrick(trickEl, winRel) {
+  const layer = document.getElementById("dealLayer");
+  const cards = Array.from(trickEl.children);
+  const seat = document.getElementById("seat" + winRel);
+  if (!cards.length || !seat || !layer || !layer.animate || prefersReduced()) return;
+  const t = (seat.querySelector(".av") || seat).getBoundingClientRect();
+  const tx = t.left + t.width / 2 - 23, ty = t.top + t.height / 2 - 33;
+  beep(240, .12);
+  cards.forEach((c, k) => {
+    const r = c.getBoundingClientRect();
+    const el = document.createElement("div");
+    el.className = "card collect-card" + (c.classList.contains("red") ? " red" : "");
+    el.innerHTML = c.innerHTML;
+    layer.appendChild(el);
+    const a = el.animate([
+      {transform:`translate(${r.left}px,${r.top}px) scale(1) rotate(0deg)`, opacity:1},
+      {transform:`translate(${tx}px,${ty}px) scale(.35) rotate(${k % 2 ? 25 : -25}deg)`, opacity:0}
+    ], {duration:420, delay:280 + k * 45, easing:"cubic-bezier(.5,0,.8,.5)", fill:"both"});
+    a.onfinish = () => {
+      el.remove();
+      if (k === cards.length - 1) {
+        const av = document.querySelector("#seat" + winRel + " .av");
+        if (av) av.animate([{transform:"scale(1)"},{transform:"scale(1.18)"},{transform:"scale(1)"}], {duration:200});
+      }
+    };
+  });
+}
 function startDeal(state) {
   const layer = document.getElementById("dealLayer");
   const cards = Array.from(document.getElementById("handArea").children);
@@ -551,6 +586,12 @@ function startDeal(state) {
   if (!layer || !cards.length || !n || !layer.animate) return;
   dealing = true;
   cards.forEach(c => c.style.visibility = "hidden");
+  dealShown = {};
+  for (let s = 1; s < n; s++) {
+    dealShown[s] = 0;
+    const bd = document.querySelector("#seat" + s + " .cbadge");
+    if (bd) bd.textContent = "0";
+  }
   const myIdx = Math.max(0, players.findIndex(p => p.id === userId));
   let first = players.findIndex(p => p.id === state.hakem);
   if (first < 0) first = 0;
@@ -599,6 +640,9 @@ function startDeal(state) {
           c.animate([{transform:"scaleX(.1)"},{transform:"none"}], {duration:160, easing:"ease-out"});
         } else {
           const av = document.querySelector("#seat" + rel + " .av");
+          dealShown[rel] = (dealShown[rel] || 0) + 1;
+          const bd = document.querySelector("#seat" + rel + " .cbadge");
+          if (bd) bd.textContent = dealShown[rel];
           if (av) av.animate([{transform:"scale(1)"},{transform:"scale(1.14)"},{transform:"scale(1)"}], {duration:150});
         }
       };
