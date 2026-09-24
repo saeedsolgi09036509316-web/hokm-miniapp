@@ -187,6 +187,21 @@ def resolve_room(room):
     resolve_round_end(room)
 
 
+def new_room(code, uid, name, max_players, target_score):
+    return {
+        "code": code, "host": uid,
+        "players": [{"id": uid, "name": name}],
+        "status": "waiting", "deck": [], "hands": {},
+        "hakem": None, "trump": None, "turn": None,
+        "trick": {}, "lead_suit": None, "trick_leader": None,
+        "tricks_won": {0: 0, 1: 0}, "round_scores": {0: 0, 1: 0},
+        "chat": [], "last_trick": None, "winner_team": None,
+        "max_players": max_players, "target_score": target_score,
+        "trick_pause_until": None, "trick_winner": None,
+        "round_result": None, "round_pause_until": None, "pending_hakem": None,
+    }
+
+
 @app.route("/api/create", methods=["POST"])
 def create():
     data = request.json
@@ -199,18 +214,7 @@ def create():
         target_score = 7
     with lock:
         code = gen_code()
-        rooms[code] = {
-            "code": code, "host": uid,
-            "players": [{"id": uid, "name": name}],
-            "status": "waiting", "deck": [], "hands": {},
-            "hakem": None, "trump": None, "turn": None,
-            "trick": {}, "lead_suit": None, "trick_leader": None,
-            "tricks_won": {0: 0, 1: 0}, "round_scores": {0: 0, 1: 0},
-            "chat": [], "last_trick": None, "winner_team": None,
-            "max_players": max_players, "target_score": target_score,
-            "trick_pause_until": None, "trick_winner": None,
-            "round_result": None, "round_pause_until": None, "pending_hakem": None,
-        }
+        rooms[code] = new_room(code, uid, name, max_players, target_score)
     return jsonify({"code": code, "state": public_state(rooms[code], uid)})
 
 
@@ -347,6 +351,66 @@ def chat():
             return jsonify({"error": "room_not_found"}), 404
         name = get_player(room, uid)["name"] if any(p["id"] == uid for p in room["players"]) else "?"
         room.setdefault("chat", []).append({"name": name, "text": text})
+    return jsonify({"ok": True})
+
+
+# ---------- جستجوی بازیکن (matchmaking) ----------
+MM_STALE = 8     # اگه بازیکن این‌قدر ثانیه پیام نده از صف حذف میشه
+MM_KEEP = 60     # چند ثانیه نتیجه‌ی مچ برای بازیکن‌های دیگه نگه داشته میشه
+mm_queues = {}   # (max_players, target_score) -> [{"id", "name", "ts"}]
+mm_matched = {}  # user_id -> {"code", "ts"}
+
+
+@app.route("/api/matchmake", methods=["POST"])
+def matchmake():
+    data = request.json
+    uid, name = str(data["user_id"]), data.get("name", "بازیکن")
+    n = 2 if int(data.get("max_players", 4)) == 2 else 4
+    score = int(data.get("target_score", 7))
+    if score not in (3, 5, 7):
+        score = 7
+    now = time.time()
+    with lock:
+        for k, v in list(mm_matched.items()):
+            if now - v["ts"] > MM_KEEP:
+                del mm_matched[k]
+        # اگه قبلاً توی یه مچ قرار گرفته و هنوز خبر نگرفته
+        if uid in mm_matched:
+            return jsonify({"status": "matched", "code": mm_matched.pop(uid)["code"]})
+
+        # بازیکن‌های بی‌جواب رو پاک کن؛ هر بازیکن فقط توی یه صف باشه
+        for key, q in mm_queues.items():
+            q[:] = [p for p in q
+                    if (p["id"] == uid and key == (n, score)) or (p["id"] != uid and now - p["ts"] < MM_STALE)]
+        q = mm_queues.setdefault((n, score), [])
+        me = next((p for p in q if p["id"] == uid), None)
+        if me:
+            me["ts"], me["name"] = now, name
+        else:
+            q.append({"id": uid, "name": name, "ts": now})
+
+        if len(q) < n:
+            return jsonify({"status": "searching", "found": len(q)})
+
+        group = q[:n]
+        del q[:n]
+        code = gen_code()
+        room = new_room(code, group[0]["id"], group[0]["name"], n, score)
+        room["players"] += [{"id": p["id"], "name": p["name"]} for p in group[1:]]
+        rooms[code] = room
+        for p in group:
+            if p["id"] != uid:
+                mm_matched[p["id"]] = {"code": code, "ts": now}
+        return jsonify({"status": "matched", "code": code})
+
+
+@app.route("/api/matchmake_cancel", methods=["POST"])
+def matchmake_cancel():
+    uid = str(request.json["user_id"])
+    with lock:
+        for q in mm_queues.values():
+            q[:] = [p for p in q if p["id"] != uid]
+        mm_matched.pop(uid, None)
     return jsonify({"ok": True})
 
 

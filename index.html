@@ -274,6 +274,7 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
     <button onclick="createRoom()" style="margin-top:14px">➕ ساخت اتاق جدید</button>
     <input id="joinCodeInput" placeholder="کد اتاق (برای پیوستن)" style="margin-top:10px">
     <button onclick="joinRoom()">🔗 پیوستن به اتاق</button>
+    <button onclick="startSearch()" style="margin-top:10px">🔎 پیدا کردن بازیکن آنلاین</button>
     <hr class="bot-sep">
     <p class="opt-label">🤖 بازی با ربات — سطح ربات:</p>
     <div class="opt-row">
@@ -335,6 +336,11 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
     <p class="coin-line" id="finishedCoin"></p>
     <button onclick="backToMenu()" style="margin-top:14px">🏠 بازگشت به منو</button>
   </div>
+  <div id="screen-search" class="panel" style="display:none;text-align:center">
+    <p style="font-size:34px;margin:6px 0">🔎</p>
+    <p id="searchInfo">در حال جستجو...</p>
+    <button onclick="cancelSearch()" style="margin-top:10px">❌ لغو جستجو</button>
+  </div>
   <button id="shopBtn" class="chat-fab shop-fab" onclick="openShop()" style="display:none">🛒</button>
   <div id="shopModal" class="shop-modal" style="display:none" onclick="if(event.target===this)closeShop()">
     <div class="shop-box">
@@ -360,6 +366,8 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
 <script>
 // همان دامنه‌ی سرور؛ نیازی به تغییر نیست
 const BACKEND_URL = "";
+// آدرس سرور جستجوی بازیکن (matchmaker.py)؛ اگه خالی باشه از همان BACKEND_URL استفاده میشه
+const MATCH_URL = "";
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 if (tg) tg.expand();
 let userId, userName, roomCode, pollTimer;
@@ -458,9 +466,45 @@ function adminAddCoins() {
   const n = parseInt(document.getElementById("adminAmount").value);
   if (n > 0) { addCoins(n); setTimeout(renderShop, 50); }
 }
+/* ---- جستجوی بازیکن آنلاین (نیاز به endpoint سمت سرور دارد) ---- */
+let searching = false, searchTimer = null, autoStartPending = false;
+function startSearch() {
+  searching = true;
+  document.getElementById("searchInfo").textContent = "در حال جستجوی بازیکن...";
+  show("screen-search");
+  searchTick();
+  searchTimer = setInterval(searchTick, 2000);
+}
+async function mmApi(path, body) {
+  const res = await fetch((MATCH_URL || BACKEND_URL) + path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data;
+}
+async function searchTick() {
+  if (!searching) return;
+  try {
+    const d = await mmApi("/api/matchmake", {user_id:userId, name:userName, max_players:selectedPlayers, target_score:selectedScore});
+    if (!searching) return;
+    if (d.status === "matched" && d.code) {
+      stopSearch(false); roomCode = d.code; autoStartPending = true; beep(880,.15,"triangle"); enterLobby();
+    } else {
+      document.getElementById("searchInfo").textContent = `در حال جستجو... ${d.found || 1} از ${selectedPlayers} بازیکن پیدا شد`;
+    }
+  } catch(e) {
+    stopSearch(true); show("screen-lobby-choice");
+    alert("جستجوی بازیکن هنوز روی سرور فعال نیست");
+  }
+}
+function stopSearch(cancel) {
+  searching = false; clearInterval(searchTimer);
+  if (cancel) mmApi("/api/matchmake_cancel", {user_id:userId}).catch(() => {});
+}
+function cancelSearch() { stopSearch(true); show("screen-lobby-choice"); }
 function backToMenu() {
   if (pollTimer) clearInterval(pollTimer);
   if (L) L.timers.forEach(clearTimeout);
+  searching = false; clearInterval(searchTimer); autoStartPending = false;
   cancelDeal(); localMode = false; L = null; roomCode = null;
   trickKey = ""; handKey = ""; lastTrickN = 0; lastTurnMe = false; roundEndKey = ""; trumpHandKey = "";
   trickRenderedPids = new Set(); lastChatCount = 0; lastStatus = ""; lastHandLen = -1; lastState = null; chatBubbles = {};
@@ -610,7 +654,7 @@ function toggleMute(){
   if (music) music.muted = muted;
 }
 function show(id) {
-  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished"]
+  ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-round-end","screen-finished","screen-search"]
     .forEach(s => document.getElementById(s).style.display = (s===id ? "block":"none"));
   const sb = document.getElementById("shopBtn");
   if (sb) sb.style.display = id === "screen-lobby-choice" ? "block" : "none";
@@ -717,6 +761,7 @@ function updateChatBubbles(state) {
 function render(state) {
   updateChatBubbles(state);
   const prevStatus = lastStatus;
+  if (state.status !== "waiting") autoStartPending = false;
   if (!localMode) {
     const myTeamR = Math.max(0, (state.players || []).findIndex(p => p.id === userId)) % 2;
     if (state.status === "round_end" && prevStatus && prevStatus !== "round_end") {
@@ -748,6 +793,7 @@ function render(state) {
       state.players.map((p,i) => `<li>${i%2?"🟠":"🟢"} ${esc(p.name)}</li>`).join("");
     document.getElementById("startBtn").style.display =
       (state.host === userId && state.players.length === maxP) ? "block" : "none";
+    if (autoStartPending && state.host === userId && state.players.length === maxP) { autoStartPending = false; startGame(); }
   } else if (state.status === "choosing_hokm") {
     show("screen-trump");
     const buttons = document.querySelectorAll(".trump-picker button");
