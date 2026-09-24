@@ -66,28 +66,25 @@ button:disabled{opacity:.4;}
 </style>
 </head>
 <body>
+<audio id="bgMusic" loop preload="auto" src="Toneloom%20Violin%20UpMusics.mp3"></audio>
 <div id="app">
   <div class="top"><span style="width:40px"></span><h2>🃏 حکم آنلاین</h2><button id="muteBtn" onclick="toggleMute()">🔊</button></div>
-
   <div id="screen-name" class="panel">
     <p>اسم شما در بازی:</p>
     <input id="nameInput" placeholder="اسمت رو بنویس">
     <button onclick="proceedFromName()">ادامه</button>
   </div>
-
   <div id="screen-lobby-choice" class="panel" style="display:none">
     <button onclick="createRoom()">➕ ساخت اتاق جدید</button>
     <input id="joinCodeInput" placeholder="کد اتاق (برای پیوستن)" style="margin-top:10px">
     <button onclick="joinRoom()">🔗 پیوستن به اتاق</button>
   </div>
-
   <div id="screen-lobby" class="panel" style="display:none">
     <p>کد اتاق: <b id="roomCodeText" style="font-size:22px;color:var(--gold)"></b></p>
     <p>این کد رو برای ۳ نفر دیگه بفرست تا وارد شوند. هم‌تیمی شما بازیکن روبه‌رویی است.</p>
     <ul id="playersList" class="players"></ul>
     <button id="startBtn" onclick="startGame()" style="display:none">▶️ شروع بازی</button>
   </div>
-
   <div id="screen-trump" class="panel" style="display:none">
     <p id="trumpMsg"></p>
     <div class="trump-picker">
@@ -97,7 +94,6 @@ button:disabled{opacity:.4;}
       <button onclick="chooseTrump('♣')">♣</button>
     </div>
   </div>
-
   <div id="screen-game" style="display:none">
     <div class="score">
       <div class="chip me">ما<b id="scMe">0</b><span id="trMe"></span></div>
@@ -114,34 +110,27 @@ button:disabled{opacity:.4;}
     </div>
     <div class="hand" id="handArea"></div>
   </div>
-
   <div id="screen-finished" class="panel" style="display:none">
     <p id="finishedMsg" style="text-align:center;font-size:20px;font-weight:900"></p>
   </div>
-
   <div class="panel">
     <div class="chatbox" id="chatBox"></div>
     <input id="chatInput" placeholder="پیام...">
     <button onclick="sendChat()">ارسال</button>
   </div>
 </div>
-
 <script>
 // همان دامنه‌ی سرور؛ نیازی به تغییر نیست
 const BACKEND_URL = "";
-
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 if (tg) tg.expand();
-
 let userId, userName, roomCode, pollTimer;
 let trickKey = "", handKey = "", lastTrickN = 0, lastTurnMe = false, muted = false, actx = null;
-
 function tgUser() {
   if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return tg.initDataUnsafe.user;
   return null;
 }
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-
 /* ---- صدا ---- */
 function beep(f, d, t){
   if (muted) return;
@@ -155,15 +144,20 @@ function beep(f, d, t){
     o.start(); o.stop(actx.currentTime + d);
   } catch(e){}
 }
-function toggleMute(){ muted = !muted; document.getElementById("muteBtn").textContent = muted ? "🔇" : "🔊"; }
-
+function toggleMute(){
+  muted = !muted;
+  document.getElementById("muteBtn").textContent = muted ? "🔇" : "🔊";
+  const music = document.getElementById("bgMusic");
+  if (music) music.muted = muted;
+}
 function show(id) {
   ["screen-name","screen-lobby-choice","screen-lobby","screen-trump","screen-game","screen-finished"]
     .forEach(s => document.getElementById(s).style.display = (s===id ? "block":"none"));
 }
-
 function proceedFromName() {
   beep(520,.08);
+  const music = document.getElementById("bgMusic");
+  if (music) { music.volume = 0.35; music.play().catch(()=>{}); }
   const tu = tgUser();
   userId = tu ? String(tu.id) : String(Date.now());
   userName = document.getElementById("nameInput").value.trim() || (tu ? tu.first_name : "بازیکن");
@@ -174,7 +168,6 @@ function proceedFromName() {
     joinRoom();
   }
 }
-
 async function api(path, method="GET", body=null) {
   const opts = {method, headers:{"Content-Type":"application/json"}};
   if (body) opts.body = JSON.stringify(body);
@@ -183,14 +176,12 @@ async function api(path, method="GET", body=null) {
   if (!res.ok) throw data;
   return data;
 }
-
 async function createRoom() {
   try {
     const data = await api("/api/create", "POST", {user_id:userId, name:userName});
     roomCode = data.code; enterLobby();
   } catch(e) { alert("خطا در ساخت اتاق"); }
 }
-
 async function joinRoom() {
   const code = document.getElementById("joinCodeInput").value.trim().toUpperCase();
   if (!code) return;
@@ -199,26 +190,22 @@ async function joinRoom() {
     roomCode = code; enterLobby();
   } catch(e) { alert(e.error === "room_full" ? "اتاق پره" : "اتاق پیدا نشد"); }
 }
-
 function enterLobby() {
   document.getElementById("roomCodeText").textContent = roomCode;
   show("screen-lobby");
   startPolling();
 }
-
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(refreshState, 1500);
   refreshState();
 }
-
 async function refreshState() {
   try {
     const data = await api(`/api/state?code=${roomCode}&user_id=${userId}`);
     render(data.state);
   } catch(e) {}
 }
-
 function render(state) {
   if (state.status === "waiting") {
     show("screen-lobby");
@@ -252,7 +239,6 @@ function render(state) {
   }
   renderChat(state.chat);
 }
-
 function parseCard(card) {
   const suit = (card.match(/[♠♥♦♣]/)||["?"])[0];
   return {suit, rank: card.replace(suit,"").trim(), red: suit==="♥"||suit==="♦"};
@@ -261,14 +247,11 @@ function cardHtml(card, extra="", attrs="") {
   const c = parseCard(card);
   return `<div class="card ${c.red?"red":""} ${extra}" ${attrs}><span class="r">${c.rank}</span><span class="s">${c.suit}</span><span class="r2">${c.rank}</span></div>`;
 }
-
 function renderGame(state) {
   const players = state.players;
   const myIdx = Math.max(0, players.findIndex(p=>p.id===userId));
   const myTeam = myIdx % 2;
   const rel = pid => (players.findIndex(p=>p.id===pid) - myIdx + 4) % 4;
-
-  // امتیاز و حکم
   const tb = document.getElementById("trumpBox");
   document.getElementById("trumpDisplay").textContent = state.trump;
   tb.className = "trumpbox" + ((state.trump==="♥"||state.trump==="♦") ? " red":"");
@@ -276,15 +259,11 @@ function renderGame(state) {
   document.getElementById("scOpp").textContent = state.round_scores[1-myTeam];
   document.getElementById("trMe").textContent = "دست: " + state.tricks_won[myTeam];
   document.getElementById("trOpp").textContent = "دست: " + state.tricks_won[1-myTeam];
-
-  // نوبت
   const myTurn = state.turn === userId;
   const turnName = (players.find(p=>p.id===state.turn)||{}).name || "";
   document.getElementById("turnStatus").textContent = myTurn ? "نوبت شماست!" : `نوبت: ${turnName}`;
   if (myTurn && !lastTurnMe) { beep(660,.12); setTimeout(()=>beep(880,.12),130); }
   lastTurnMe = myTurn;
-
-  // صندلی‌ها
   for (let s=0; s<4; s++) document.getElementById("seat"+s).innerHTML = "";
   players.forEach((p,i) => {
     const s = rel(p.id);
@@ -292,8 +271,6 @@ function renderGame(state) {
     document.getElementById("seat"+s).innerHTML =
       `<div class="av t${team} ${state.turn===p.id?"turn":""}">${state.hakem===p.id?'<span class="crown">👑</span>':""}${esc(p.name.charAt(0))}</div><div class="nm">${s===0?"شما":esc(p.name)}</div>`;
   });
-
-  // میز
   const entries = Object.entries(state.trick);
   const tk = entries.map(([pid,c])=>pid+c).join("|");
   if (tk !== trickKey) {
@@ -303,8 +280,6 @@ function renderGame(state) {
     document.getElementById("trick").innerHTML = entries.map(([pid,card]) =>
       cardHtml(card, `tc${rel(pid)} drop`)).join("");
   }
-
-  // دست
   const hk = state.hand.join("|") + (myTurn?"*":"");
   if (hk !== handKey) {
     handKey = hk;
@@ -313,17 +288,14 @@ function renderGame(state) {
     h.innerHTML = state.hand.map(card => cardHtml(card, "", `onclick="playCard('${card}')"`)).join("");
   }
 }
-
 async function startGame() {
   try { await api("/api/start", "POST", {code:roomCode, user_id:userId}); }
   catch(e) { alert("خطا در شروع بازی"); }
 }
-
 async function chooseTrump(suit) {
   try { await api("/api/choose_trump", "POST", {code:roomCode, user_id:userId, suit}); }
   catch(e) { alert("فقط حاکم می‌تونه حکم رو انتخاب کنه"); }
 }
-
 async function playCard(card) {
   try { await api("/api/play", "POST", {code:roomCode, user_id:userId, card}); refreshState(); }
   catch(e) {
@@ -333,7 +305,6 @@ async function playCard(card) {
     else alert("حرکت نامعتبر");
   }
 }
-
 async function sendChat() {
   const input = document.getElementById("chatInput");
   const text = input.value.trim();
@@ -341,7 +312,6 @@ async function sendChat() {
   input.value = "";
   try { await api("/api/chat", "POST", {code:roomCode, user_id:userId, text}); } catch(e){}
 }
-
 function renderChat(chat) {
   if (!chat) return;
   document.getElementById("chatBox").innerHTML =
