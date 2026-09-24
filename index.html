@@ -506,6 +506,12 @@ body.tbl-persepolis::before{background-image:var(--bg-persepolis)!important;}}
   </div>
 </div>
 <script>
+window.addEventListener('error', function(e){
+  try { alert('خطای جاوااسکریپت:\n' + e.message + '\nخط ' + e.lineno); } catch(x){}
+});
+window.addEventListener('unhandledrejection', function(e){
+  try { alert('خطای async:\n' + (e.reason && e.reason.message || e.reason)); } catch(x){}
+});
 // همان دامنه‌ی سرور؛ نیازی به تغییر نیست
 const BACKEND_URL = "";
 // آدرس سرور جستجوی بازیکن (matchmaker.py)؛ اگه خالی باشه از همان BACKEND_URL استفاده میشه
@@ -1434,10 +1440,4 @@ function renderGame(state) {
   });
   const entries = Object.entries(state.trick);
   const tk = entries.map(([pid,c])=>pid+c).join("|");
-  if (tk !== trickKey) {
-    if (entries.length > lastTrickN) beep(300,.09,"square");
-    lastTrickN = entries.length;
-    trickKey = tk;
-    const trickEl = document.getElementById("trick");
-    // اگه دست جدیدی شروع شده (تعداد کارت‌ها کمتر از قبله یا صفره)، میز رو کامل خالی کن
-    if (entries.length === 0 |
+  if (tk !== trickKey) 
